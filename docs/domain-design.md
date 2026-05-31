@@ -91,10 +91,13 @@ RoomOption(6/15) stock=50  →  stock=40  +  EventOption.promo_stock_total=10
 
 이력 한 장으로 `SUM(USE) − SUM(REFUND)` ↔ `balance` 델타를 대조해 정합성을 검증할 수 있다. point_detail이 필요한 lot FIFO 복잡성은 없다.
 
-차감/복원 규칙:
-- **차감**: 결제 성공 트랜잭션(T2) 안에서 `balance -= used` + `point_transaction(USE)` insert를 함께 커밋.
-- **복원**: 성공 경로에서만 차감되므로 PG 실패 시엔 애초에 안 빠진다. 환불 케이스에서만 `balance += used` + `point_transaction(REFUND)`.
-- **멱등**: "주문이 아직 PAID 아닐 때만 차감" 가드 + `orders.idempotency_key` UNIQUE가 최후 보루.
+차감 순서 — **내부 먼저, 외부 나중**:
+
+되돌리기 쉬운 포인트(내부 DB)를 **먼저** 차감하고, 되돌리기 어려운 PG(카드/Y페이, 외부)를 **마지막에** 호출한다. PG는 취소하려면 외부 호출(취소 요청)이 또 필요하고 그마저 실패할 수 있으므로, 되돌릴 일이 생기면 항상 **내부 자원만** 되돌리도록 순서를 고정한다. 이 순서 덕에 PG 취소를 부를 경로가 구조적으로 없다.
+
+- **차감**: 재고 선점 후 **PG 호출 전에** 로컬 트랜잭션(T1)에서 `balance -= used` + `point_transaction(USE)` + 주문 `PENDING` insert를 함께 커밋. 포인트가 맨 먼저라 **잔액 부족이면 PG 호출 전에 즉시 중단**된다 (별도 사전 잔액 검증 단계가 필요 없다 — 차감 자체가 검증).
+- **복원(보상)**: PG가 실패(한도 초과 등)하면 앞서 차감한 포인트를 환불 — `balance += used` + `point_transaction(REFUND)`. 포인트 단독 결제(PG 없음)면 보상 경로 자체가 없다.
+- **멱등**: 같은 `idempotency_key` 재요청은 새로 차감하지 않고 **기존 주문 결과를 그대로 반환**한다. `orders.idempotency_key` UNIQUE가 최후 보루.
 
 ---
 
