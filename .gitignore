@@ -1,0 +1,31 @@
+# 커밋 제외 (요구사항 원문 + 에이전트 지침)
+docs/ASSIGNMENT.md
+CLAUDE.md
+
+# Build
+target/
+build/
+!**/src/main/**/target/
+!**/src/test/**/target/
+.gradle/
+out/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+
+# Logs / OS
+*.log
+.DS_Store
+
+# Env / secrets
+*.env
+application-local.yml
+application-local.yaml
+application-local.properties
