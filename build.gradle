@@ -33,6 +33,10 @@ dependencies {
     // DB driver (MySQL/MariaDB 계열)
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 
+    // ShedLock (분산 스케줄러 락 — Redis provider)
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:6.9.2'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:6.9.2'
+
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
