@@ -8,13 +8,20 @@ spring:
     password: ${DB_PASSWORD:root}
     driver-class-name: org.mariadb.jdbc.Driver
 
+  sql:
+    init:
+      mode: always   # schema.sql 항상 실행
+
   jpa:
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          time_zone: Asia/Seoul
     open-in-view: false
+    defer-datasource-initialization: true   # schema.sql 먼저, JPA validate 나중
 
   data:
     redis:

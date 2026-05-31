@@ -78,6 +78,8 @@ RoomOption(6/15) stock=50  →  stock=40  +  EventOption.promo_stock_total=10
 
 체크아웃 날짜를 저장하지 않는 이유: 1박 고정이라 `checkInDate + 1`로 자명. 저장하면 두 값이 어긋날 여지만 생긴다.
 
+"6월 12일 체크인"이 어느 나라 날짜인지는 **숙소(Product)의 타임존**이 결정한다. 타임존은 예약이 아니라 숙소에 속하기 때문이다. `Product.timezone`(IANA)을 두고 `RoomOption.hotelZone()`으로 파생한다. 현재 서비스는 한국 단일이라 default가 `Asia/Seoul`이지만, 글로벌 숙소 추가 시 필드 값만 바꾸면 된다.
+
 ---
 
 ## 4. 포인트 설계 — flat 이력(Lv1)
@@ -154,7 +156,7 @@ payment.amount      =  70,000 (PG 청구분, net)
 | 엔티티 | 핵심 컬럼 | 비고 |
 |---|---|---|
 | **users** | `id`, `name` | 인증 범위 밖 → 식별용 최소 컬럼만 (email/password/role 없음) |
-| **product** | `id`, `name` | 객실타입 |
+| **product** | `id`, `name`, `timezone` | 객실타입. `timezone` = IANA 타임존 (예: `Asia/Seoul`, `Europe/Paris`). default `Asia/Seoul` |
 | **room_option** | `product_id(FK)`, `check_in_date(DATE)`, `check_in_time(TIME)`, `check_out_time(TIME)`, `base_price(BIGINT)`, `stock(INT)` | 옵션=객실타입+날짜+1박. `UNIQUE(product_id, check_in_date)` |
 | **event** | `id`, `name`, `starts_at`, `ends_at`, `status` | `status`: SCHEDULED\|OPEN\|CLOSED |
 | **event_option** | `event_id(FK)`, `option_id(FK)`, `promo_price(BIGINT)`, `promo_stock_total(INT)` | `UNIQUE(event_id, option_id)`. promo_stock_total = 초기 할당량(=10), 라이브 잔여 아님 |

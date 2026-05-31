@@ -33,6 +33,12 @@ dependencies {
     // DB driver (MySQL/MariaDB 계열)
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
     // ShedLock (분산 스케줄러 락 — Redis provider)
     implementation 'net.javacrumbs.shedlock:shedlock-spring:6.9.2'
     implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:6.9.2'
