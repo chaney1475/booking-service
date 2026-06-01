@@ -28,9 +28,8 @@ public class UserPointServiceImpl implements UserPointService {
     @Transactional
     public void deduct(Long userId, long amount) {
         if (amount <= 0) return;
-        UserPoint userPoint = userPointRepository.findByUserId(userId)
-                .orElseThrow(() -> new BaseException(ErrorCode.INSUFFICIENT_POINT));
-        userPoint.deduct(amount);
+        int rows = userPointRepository.deductBalance(userId, amount);
+        if (rows == 0) throw new BaseException(ErrorCode.INSUFFICIENT_POINT);
     }
 
     /**
@@ -41,7 +40,6 @@ public class UserPointServiceImpl implements UserPointService {
     @Transactional
     public void refund(Long userId, long amount) {
         if (amount <= 0) return;
-        userPointRepository.findByUserId(userId)
-                .ifPresent(up -> up.refund(amount));
+        userPointRepository.refundBalance(userId, amount);
     }
 }

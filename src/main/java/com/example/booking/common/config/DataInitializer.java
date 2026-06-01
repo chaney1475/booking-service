@@ -51,9 +51,7 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         User user = userRepository.save(new User("테스트유저"));
-        UserPoint point = new UserPoint(user);
-        point.refund(5_000L);
-        userPointRepository.save(point);
+        userPointRepository.save(new UserPoint(user, 5_000L));
 
         ZonedDateTime now = ZonedDateTime.now(KST);
 

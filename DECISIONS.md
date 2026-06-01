@@ -246,3 +246,39 @@ Agoda, Expedia, Booking.com 모두 체크인/아웃 날짜를 `YYYY-MM-DD` (Loca
 **숙소 타임존은 예약이 아닌 숙소에 귀속**
 
 체크인 "15:00"은 사용자 위치와 무관하게 숙소 현지 오후 3시를 의미함. 타임존 정보는 `Product.timezone`(IANA, default `Asia/Seoul`)에 저장하고 체크인/아웃 시각 계산 시 이를 기준으로 처리함. 글로벌 숙소 추가 시 필드 값만 교체하면 됨.
+
+---
+
+## 쟁점 13. UserPoint 설계 단순화 + JPQL UPDATE 원자 처리
+
+### 상황
+
+포인트 설계의 정석은 `point_event`(충전·차감 이력 로그) + `point_balance`(현재 잔액) 두 테이블로 분리하는 구조임. 이력을 통해 감사, 분쟁 처리, 잔액 재산출이 가능함.
+
+### 선택
+
+단순화하여 `user_point` 테이블 하나(balance 컬럼)만 운용. 차감·환불 모두 `@Modifying @Query` JPQL UPDATE 한 문장으로 처리.
+
+```
+-- 차감 (잔액 부족 시 0 rows 반환)
+UPDATE user_point SET balance = balance - :amount, updated_at = NOW()
+ WHERE user_id = :userId AND balance >= :amount
+
+-- 환불
+UPDATE user_point SET balance = balance + :amount, updated_at = NOW()
+ WHERE user_id = :userId
+```
+
+### 판단 근거
+
+**단순화 이유**
+
+이력 테이블은 운영·감사 요건이 있을 때 가치가 있음. 현재 과제 범위에서 포인트는 결제 흐름의 내부 자원으로만 사용되므로 balance 단일 컬럼으로 충분함.
+
+**JPQL UPDATE 선택 이유**
+
+비관적 락(SELECT FOR UPDATE + UPDATE, 2회 왕복)보다 UPDATE 단일 문장이 더 원자적임. DB가 `WHERE balance >= :amount` 조건 평가와 차감을 한 번에 처리하므로 별도 락 없이 race condition이 없음. `rows == 0`이면 잔액 부족(또는 레코드 없음)으로 판단해 `INSUFFICIENT_POINT`를 throw함. `@Modifying(clearAutomatically = true)`로 업데이트 후 1차 캐시를 즉시 클리어함.
+
+**데드락 없는 이유**
+
+UPDATE 문은 해당 행에 대해 락을 획득하고 즉시 해제함. 단일 행 UPDATE이므로 여러 행을 순서 없이 잠그는 패턴 자체가 없어 사이클이 구조적으로 불가능함.

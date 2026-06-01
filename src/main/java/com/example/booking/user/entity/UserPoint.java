@@ -31,16 +31,8 @@ public class UserPoint {
         this.balance = 0;
     }
 
-    public void deduct(long amount) {
-        if (this.balance < amount) {
-            throw new IllegalStateException("포인트 잔액이 부족합니다.");
-        }
-        this.balance -= amount;
-        this.updatedAt = ZonedDateTime.now();   // @PreUpdate 없는 독립 엔티티라 직접 갱신
-    }
-
-    public void refund(long amount) {
-        this.balance += amount;
-        this.updatedAt = ZonedDateTime.now();
+    public UserPoint(User user, long initialBalance) {
+        this.user = user;
+        this.balance = initialBalance;
     }
 }
