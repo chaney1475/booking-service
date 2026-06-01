@@ -1,6 +1,6 @@
 package com.example.booking.controller.checkout.request;
 
-import com.example.booking.checkout.service.command.CheckoutCommand;
+import com.example.booking.checkout.command.CheckoutCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 

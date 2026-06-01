@@ -8,16 +8,24 @@ HTTP Request
     ▼
 [Controller]
   - @Valid 로 Request 검증
-  - Request.toCommand() 변환 후 Service 호출
-  - Service 반환 DTO → Response 변환
+  - Request.toCommand() 변환 후 Facade 또는 Service 호출
+  - 반환 DTO → Response 변환
   - ApiResponse<T> 로 감싸서 반환
+    │
+    ▼
+[Facade]  ← 여러 Service를 조합하는 경우에만 사용 (인터페이스 없음)
+  - 입력: XxxCommand
+  - 출력: XxxDto
+  - 도메인 서비스 간 조합·위임만 담당
+  - 직접 Repository 참조 금지
     │
     ▼
 [Service]
   - 입력: XxxCommand
   - 출력: XxxDto
-  - 비즈니스 로직만 담당
-  - Entity를 직접 Controller에 노출하지 않음
+  - 단일 도메인 비즈니스 로직 담당
+  - 자신의 Repository만 참조
+  - Entity를 직접 Controller/Facade에 노출하지 않음
     │
     ▼
 [Repository]
@@ -28,6 +36,10 @@ HTTP Request
 [DB / Redis]
 ```
 
+**Facade vs Service 구분 기준:**
+- 다른 Service를 주입받아 조합 → **Facade** (인터페이스 없음, `{Domain}Facade`)
+- 자신의 Repository만 사용 → **Service** (인터페이스 + Impl)
+
 ---
 
 ## 네이밍 규칙
@@ -37,6 +49,7 @@ HTTP Request
 | 레이어 | 패턴 | 예시 |
 |--------|------|------|
 | Controller | `{Domain}Controller` | `ProductController` |
+| Facade | `{Domain}Facade` | `CheckoutFacade` |
 | Service (인터페이스) | `{Domain}Service` | `ProductService` |
 | Service (구현체) | `{Domain}ServiceImpl` | `ProductServiceImpl` |
 | Repository | `{Domain}Repository` | `ProductRepository` |
@@ -381,10 +394,13 @@ com.example.booking
 │           └── {Domain}Response.java    (쓰기는 {Action}{Domain}Response)
 │
 ├── {도메인}/                             ← 도메인 패키지 (domain/ 래퍼 없음)
+│   ├── {Domain}Facade.java              (선택 — 여러 서비스 조합 시에만)
+│   ├── command/                         (Facade 입력 Command)
+│   │   └── {Domain}Command.java
 │   ├── service/
 │   │   ├── {Domain}Service.java         (인터페이스)
 │   │   ├── {Domain}ServiceImpl.java     (구현체)
-│   │   └── command/
+│   │   └── command/                     (Service 입력 Command)
 │   │       ├── Create{Domain}Command.java
 │   │       └── Update{Domain}Command.java
 │   ├── repository/

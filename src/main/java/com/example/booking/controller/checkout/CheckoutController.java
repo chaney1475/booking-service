@@ -1,7 +1,7 @@
 package com.example.booking.controller.checkout;
 
+import com.example.booking.checkout.CheckoutFacade;
 import com.example.booking.checkout.dto.CheckoutDto;
-import com.example.booking.checkout.service.CheckoutService;
 import com.example.booking.common.response.ApiResponse;
 import com.example.booking.controller.checkout.request.CheckoutRequest;
 import com.example.booking.controller.checkout.response.CheckoutResponse;
@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/checkout")
 public class CheckoutController {
 
-    private final CheckoutService checkoutService;
+    private final CheckoutFacade checkoutFacade;
 
     @Operation(
             summary = "체크아웃 조회",
@@ -36,7 +36,7 @@ public class CheckoutController {
             @Parameter(description = "사용자 ID", required = true)
             @RequestHeader("X-User-Id") Long userId
     ) {
-        CheckoutDto dto = checkoutService.getCheckout(request.toCommand(userId));
+        CheckoutDto dto = checkoutFacade.getCheckout(request.toCommand(userId));
         return ResponseEntity.ok(ApiResponse.ok(CheckoutResponse.from(dto)));
     }
 }

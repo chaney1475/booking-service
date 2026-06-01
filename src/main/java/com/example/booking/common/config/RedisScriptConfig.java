@@ -9,6 +9,10 @@ import org.springframework.data.redis.core.script.RedisScript;
 @Configuration
 public class RedisScriptConfig {
 
+    /**
+     * Lua 스크립트 3개를 record로 묶어 단일 빈으로 등록함.
+     * 같은 타입(RedisScript<String>)이 여러 개라 @Qualifier 없이 StockServiceImpl에 주입 가능하도록 래핑함.
+     */
     @Bean
     public StockScripts stockScripts() {
         return new StockScripts(

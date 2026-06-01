@@ -31,7 +31,6 @@ public class EventOption extends BaseEntity {
     @Column(nullable = false)
     private long promoPrice;
 
-    // 초기 할당량(=10). 라이브 잔여는 Redis 권위
     @Column(nullable = false)
     private int promoStockTotal;
 
