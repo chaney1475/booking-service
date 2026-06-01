@@ -50,8 +50,11 @@ public class DataInitializer implements ApplicationRunner {
             return;
         }
 
-        User user = userRepository.save(new User("테스트유저"));
-        userPointRepository.save(new UserPoint(user, 5_000L));
+        // 유저 20명 생성 — 재고(10) < 유저(20)이어야 경합 테스트 성립
+        for (int i = 1; i <= 20; i++) {
+            User u = userRepository.save(new User("테스트유저" + i));
+            userPointRepository.save(new UserPoint(u, 10_000L));
+        }
 
         ZonedDateTime now = ZonedDateTime.now(KST);
 
@@ -60,8 +63,7 @@ public class DataInitializer implements ApplicationRunner {
         createEvent("스탠다드 가든뷰", now.plusMinutes(7), LocalDate.of(2026, 6, 20), 60_000L, 40_000L);
         createEvent("패밀리 스위트",   now.plusMinutes(8), LocalDate.of(2026, 6, 25), 120_000L, 90_000L);
 
-        log.info("[DataInitializer] done — userId={} (points: 5,000), events: 3개 생성 (startsAt = now+6m/+7m/+8m)",
-                user.getId());
+        log.info("[DataInitializer] done — users: 20명 (각 10,000포인트), events: 3개 (startsAt = now+6m/+7m/+8m)");
         log.info("[DataInitializer] StockSeeder가 다음 정각에 셋 다 감지 → Redis 시드 예정");
     }
 

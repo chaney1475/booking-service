@@ -2,6 +2,10 @@ package com.example.booking.point.service;
 
 import com.example.booking.common.exception.BaseException;
 import com.example.booking.common.exception.ErrorCode;
+import com.example.booking.order.entity.Order;
+import com.example.booking.point.entity.PointTransaction;
+import com.example.booking.point.entity.PointTransactionType;
+import com.example.booking.point.repository.PointTransactionRepository;
 import com.example.booking.user.entity.UserPoint;
 import com.example.booking.user.repository.UserPointRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserPointServiceImpl implements UserPointService {
 
     private final UserPointRepository userPointRepository;
+    private final PointTransactionRepository pointTransactionRepository;
 
-    /** 포인트 잔액 조회 — 레코드 없는 신규 유저는 0 반환함. */
     @Override
     @Transactional(readOnly = true)
     public long getBalance(Long userId) {
@@ -23,23 +27,20 @@ public class UserPointServiceImpl implements UserPointService {
                 .orElse(0L);
     }
 
-    /** 포인트 차감 — amount가 0 이하면 포인트 미사용 결제이므로 스킵함. */
     @Override
     @Transactional
-    public void deduct(Long userId, long amount) {
+    public void deduct(Long userId, long amount, Order order) {
         if (amount <= 0) return;
         int rows = userPointRepository.deductBalance(userId, amount);
         if (rows == 0) throw new BaseException(ErrorCode.INSUFFICIENT_POINT);
+        pointTransactionRepository.save(new PointTransaction(userId, order, PointTransactionType.USE, amount));
     }
 
-    /**
-     * 포인트 환불 — amount가 0 이하거나 레코드 없으면 스킵함.
-     * 레코드 없는 경우 스킵하는 이유: 보상 흐름이 데이터 정합성 이슈로 중단되지 않도록 방어적 처리.
-     */
     @Override
     @Transactional
-    public void refund(Long userId, long amount) {
+    public void refund(Long userId, long amount, Order order) {
         if (amount <= 0) return;
         userPointRepository.refundBalance(userId, amount);
+        pointTransactionRepository.save(new PointTransaction(userId, order, PointTransactionType.REFUND, amount));
     }
 }
