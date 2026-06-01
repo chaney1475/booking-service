@@ -370,34 +370,42 @@ public class LocalStockStore implements StockStore {
 ## 패키지 구조 상세
 
 ```
-domain/{도메인}/
-├── controller/
-│   ├── {Domain}Controller.java
-│   ├── request/
-│   │   ├── Create{Domain}Request.java
-│   │   └── Update{Domain}Request.java
-│   └── response/
-│       └── {Domain}Response.java     (쓰기는 {Action}{Domain}Response)
-├── service/
-│   ├── {Domain}Service.java          (인터페이스)
-│   ├── {Domain}ServiceImpl.java      (구현체)
-│   └── command/
-│       ├── Create{Domain}Command.java
-│       └── Update{Domain}Command.java
-├── repository/
-│   └── {Domain}Repository.java
-├── entity/
-│   └── {Domain}.java
-├── dto/
-│   └── {Domain}Dto.java
-└── exception/
-    └── {Domain}NotFoundException.java
+com.example.booking
+├── controller/                          ← HTTP 진입점 전용
+│   └── {도메인}/
+│       ├── {Domain}Controller.java
+│       ├── request/
+│       │   ├── Create{Domain}Request.java
+│       │   └── Update{Domain}Request.java
+│       └── response/
+│           └── {Domain}Response.java    (쓰기는 {Action}{Domain}Response)
+│
+├── {도메인}/                             ← 도메인 패키지 (domain/ 래퍼 없음)
+│   ├── service/
+│   │   ├── {Domain}Service.java         (인터페이스)
+│   │   ├── {Domain}ServiceImpl.java     (구현체)
+│   │   └── command/
+│   │       ├── Create{Domain}Command.java
+│   │       └── Update{Domain}Command.java
+│   ├── repository/
+│   │   └── {Domain}Repository.java
+│   ├── entity/
+│   │   └── {Domain}.java
+│   └── dto/
+│       └── {Domain}Dto.java
+│
+└── common/                              ← 공통
+    ├── config/
+    ├── entity/
+    ├── exception/
+    └── response/
 ```
 
 레이어별 소유:
-- **Request / Response** → controller가 소유 (HTTP 형상)
-- **Command** → service가 소유 (비즈니스 형상)
-- **Dto** → 레이어 간 공유 (도메인 직속)
+- **Request / Response** → `controller/{도메인}/` 소유 (HTTP 형상)
+- **Command** → `{도메인}/service/command/` 소유 (비즈니스 형상)
+- **Dto** → `{도메인}/dto/` (서비스↔컨트롤러 레이어 간 공유)
+- **Entity** → `{도메인}/entity/` (JPA 영속 모델)
 
 ---
 
