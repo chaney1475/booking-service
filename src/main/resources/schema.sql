@@ -16,6 +16,7 @@ SET NAMES utf8mb4;
 DROP TABLE IF EXISTS point_transaction;
 DROP TABLE IF EXISTS payment_line;
 DROP TABLE IF EXISTS payment;
+DROP TABLE IF EXISTS order_line;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS event_option;
 DROP TABLE IF EXISTS event;
@@ -117,19 +118,42 @@ CREATE TABLE event_option (
 -- -------------------------------------------------------------
 CREATE TABLE orders (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
-    event_option_id BIGINT       NOT NULL,
     user_id         BIGINT       NOT NULL,
     idempotency_key VARCHAR(80)  NOT NULL               COMMENT '클라이언트 발급 멱등키',
     status          VARCHAR(20)  NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING|PAID|FAILED|UNKNOWN|CANCELLED',
-    total_amount    BIGINT       NOT NULL               COMMENT '상품가 gross (Σpayment_line)',
+    total_amount    BIGINT       NOT NULL               COMMENT '상품가 gross (Σorder_line.line_amount)',
     created_at      DATETIME(6)  NOT NULL,
     updated_at      DATETIME(6)  NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_orders_idempotency_key (idempotency_key),
     KEY idx_orders_user (user_id),
     KEY idx_orders_status_created (status, created_at),
-    CONSTRAINT fk_orders_event_option FOREIGN KEY (event_option_id) REFERENCES event_option (id),
-    CONSTRAINT fk_orders_user         FOREIGN KEY (user_id)         REFERENCES users (id)
+    CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- 주문 라인 (투숙 1건 = 한 객실 한 체크인)
+-- promo면 event_option_id 채워짐, 일반 예약이면 NULL
+-- check_out_date = check_in_date + nights (Generated Column, 드리프트 없음)
+-- -------------------------------------------------------------
+CREATE TABLE order_line (
+    id              BIGINT      NOT NULL AUTO_INCREMENT,
+    order_id        BIGINT      NOT NULL,
+    room_option_id  BIGINT      NOT NULL,
+    event_option_id BIGINT      NULL,
+    check_in_date   DATE        NOT NULL,
+    check_out_date  DATE        GENERATED ALWAYS AS (DATE_ADD(check_in_date, INTERVAL nights DAY)) STORED
+                                COMMENT '파생: check_in_date + nights (수동 저장 금지)',
+    nights          INT         NOT NULL DEFAULT 1     COMMENT '현재 구현 1 고정. 연박 확장 시 N',
+    unit_price      BIGINT      NOT NULL               COMMENT '예약 시점 가격 스냅샷(원)',
+    line_amount     BIGINT      NOT NULL               COMMENT 'unit_price × nights',
+    created_at      DATETIME(6) NOT NULL,
+    updated_at      DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_order_line_order (order_id),
+    CONSTRAINT fk_order_line_order        FOREIGN KEY (order_id)        REFERENCES orders (id),
+    CONSTRAINT fk_order_line_room_option  FOREIGN KEY (room_option_id)  REFERENCES room_option (id),
+    CONSTRAINT fk_order_line_event_option FOREIGN KEY (event_option_id) REFERENCES event_option (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

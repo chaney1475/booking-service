@@ -1,7 +1,6 @@
 package com.example.booking.domain.order.entity;
 
 import com.example.booking.common.entity.BaseEntity;
-import com.example.booking.domain.event.entity.EventOption;
 import com.example.booking.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -16,10 +15,6 @@ public class Order extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_option_id", nullable = false)
-    private EventOption eventOption;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -30,15 +25,14 @@ public class Order extends BaseEntity {
     @Column(nullable = false, length = 20)
     private OrderStatus status;
 
-    // gross: 상품가 = Σpayment_line.amount
+    // gross: 상품가 = Σorder_line.line_amount = Σpayment_line.amount
     @Column(nullable = false)
     private long totalAmount;
 
     protected Order() {
     }
 
-    public Order(EventOption eventOption, User user, String idempotencyKey, long totalAmount) {
-        this.eventOption = eventOption;
+    public Order(User user, String idempotencyKey, long totalAmount) {
         this.user = user;
         this.idempotencyKey = idempotencyKey;
         this.totalAmount = totalAmount;

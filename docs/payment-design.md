@@ -93,7 +93,7 @@ void validate(List<PaymentLine> lines, long orderAmount) {
 flowchart TD
     A["POST /booking"] --> B["PaymentPolicy 조합 검증"]
     B --> C["[Redis] 재고 reserve"]
-    C --> D["PointProcessor.deduct()\n포인트 차감 + 주문 PENDING (T1)"]
+    C --> D["PointProcessor.deduct()\n포인트 차감 + 주문·라인 PENDING (T1)"]
     D --> E{"PG 수단 있음?"}
     E -->|포인트 단독| F["[Redis] confirm → [MySQL] PAID (T2)"]
     E -->|카드/페이 포함| G["Router → Gateway.approve()"]
@@ -103,7 +103,7 @@ flowchart TD
     H -->|UNKNOWN| K["동결: 주문 UNKNOWN 저장\n→ 사용자: '처리 중' 안내"]
 ```
 
-**T1 (로컬 트랜잭션 1)**: 포인트 차감 + `point_transaction(USE)` + 주문 `PENDING` insert  
+**T1 (로컬 트랜잭션 1)**: 포인트 차감 + `point_transaction(USE)` + 주문·라인 `PENDING` insert  
 **T2 (로컬 트랜잭션 2)**: 주문 `PAID` + 결제 `SUCCESS` + `payment_line` insert
 
 ---

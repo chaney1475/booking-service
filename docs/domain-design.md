@@ -29,7 +29,9 @@ erDiagram
     product       ||--o{ room_option        : "1:N"
     room_option   ||--o{ event_option       : "1:N"
     event         ||--o{ event_option       : "1:N"
-    event_option  ||--o{ orders             : "1:N"
+    orders        ||--o{ order_line         : "1:N"
+    order_line    }o--|| room_option        : "재고 단위(타입×날짜)"
+    order_line    }o--o| event_option       : "promo 출처(nullable)"
     orders        ||--|| payment            : "1:1"
     payment       ||--o{ payment_line       : "1:N"
     orders        ||--o{ point_transaction  : "1:N"
@@ -97,7 +99,7 @@ RoomOption(6/15) stock=50  →  stock=40  +  EventOption.promo_stock_total=10
 
 되돌리기 쉬운 포인트(내부 DB)를 **먼저** 차감하고, 되돌리기 어려운 PG(카드/Y페이, 외부)를 **마지막에** 호출한다. PG는 취소하려면 외부 호출(취소 요청)이 또 필요하고 그마저 실패할 수 있으므로, 되돌릴 일이 생기면 항상 **내부 자원만** 되돌리도록 순서를 고정한다. 이 순서 덕에 PG 취소를 부를 경로가 구조적으로 없다.
 
-- **차감**: 재고 선점 후 **PG 호출 전에** 로컬 트랜잭션(T1)에서 `balance -= used` + `point_transaction(USE)` + 주문 `PENDING` insert를 함께 커밋. 포인트가 맨 먼저라 **잔액 부족이면 PG 호출 전에 즉시 중단**된다 (별도 사전 잔액 검증 단계가 필요 없다 — 차감 자체가 검증).
+- **차감**: 재고 선점 후 **PG 호출 전에** 로컬 트랜잭션(T1)에서 `balance -= used` + `point_transaction(USE)` + 주문·라인 `PENDING` insert를 함께 커밋. 포인트가 맨 먼저라 **잔액 부족이면 PG 호출 전에 즉시 중단**된다 (별도 사전 잔액 검증 단계가 필요 없다 — 차감 자체가 검증).
 - **복원(보상)**: PG가 실패(한도 초과 등)하면 앞서 차감한 포인트를 환불 — `balance += used` + `point_transaction(REFUND)`. 포인트 단독 결제(PG 없음)면 보상 경로 자체가 없다.
 - **멱등**: 같은 `idempotency_key` 재요청은 새로 차감하지 않고 **기존 주문 결과를 그대로 반환**한다. `orders.idempotency_key` UNIQUE가 최후 보루.
 
@@ -143,7 +145,7 @@ orders.total_amount = 100,000 (gross)
 payment.amount      =  70,000 (PG 청구분, net)
 ```
 
-불변식 `Σ payment_line = orders.total_amount`가 한 줄로 성립한다. net(현금분)을 담으면 주문 금액만으로 상품가를 알 수 없고 payment_line 합과도 어긋나 검증이 꼬인다.
+불변식 `Σ order_line.line_amount = orders.total_amount = Σ payment_line.amount`가 한 줄로 성립한다. net(현금분)을 담으면 주문 금액만으로 상품가를 알 수 없고 payment_line 합과도 어긋나 검증이 꼬인다.
 
 ---
 
@@ -165,7 +167,8 @@ payment.amount      =  70,000 (PG 청구분, net)
 
 | 엔티티 | 핵심 컬럼 | 비고 |
 |---|---|---|
-| **orders** | `event_option_id(FK)`, `user_id(FK)`, `idempotency_key`, `status`, `total_amount(gross)` | `UNIQUE(idempotency_key)` = 멱등성 최후 보루. status: PENDING\|PAID\|FAILED\|UNKNOWN\|CANCELLED |
+| **orders** | `user_id(FK)`, `idempotency_key`, `status`, `total_amount(gross)` | `UNIQUE(idempotency_key)` = 멱등성 최후 보루. `event_option_id` 제거 — 예약 종류는 order_line이 담음. status: PENDING\|PAID\|FAILED\|UNKNOWN\|CANCELLED |
+| **order_line** | `order_id(FK)`, `room_option_id(FK)`, `event_option_id(FK, NULL)`, `check_in_date`, `nights`, `unit_price`, `line_amount` | 투숙 1건 = 한 객실 한 체크인. promo면 `event_option_id` 채워짐, 일반이면 NULL. `check_out_date`는 DB Generated Column(드리프트 없음). 현재 구현은 nights=1 고정 |
 | **payment** | `order_id(FK)`, `status`, `amount(net)`, `pg_tx_ref`, `fail_reason` | 주문:결제 = 1:1. `UNIQUE(order_id)`. status: PENDING\|SUCCESS\|FAILED\|UNKNOWN\|REFUNDED |
 | **payment_line** | `payment_id(FK)`, `method`, `amount` | 복합결제 수단별 1행. method: CREDIT_CARD\|PAY\|POINT. 결제 확장성의 데이터 토대 |
 | **user_point** | `user_id(PK,FK)`, `balance(BIGINT)` | 잔액 |
@@ -183,7 +186,34 @@ payment.amount      =  70,000 (PG 청구분, net)
 
 ---
 
-## 8. 결정 요약
+## 8. Order → OrderLine 구조와 확장 경로
+
+Order는 **결제 트랜잭션 헤더**이고, OrderLine이 **"무엇을 샀나"를 아는 유일한 레이어**다.
+
+```
+Order            ← 결제 단위. 멱등키·상태·총액. 예약 종류 모름
+ └── OrderLine  ← 투숙 1건. room_option_id + event_option_id(nullable) + 날짜/박수/가격 스냅샷
+```
+
+| 예약 종류 | event_option_id | nights | 비고 |
+|---|---|---|---|
+| 이벤트 1박 (현재 구현) | 채워짐 | 1 | promo 재고 경로 |
+| 일반 1박 | NULL | 1 | 구조 변경 없이 지원 가능 |
+| 일반 연박 | NULL | N | reserve 루프 확장만 필요 |
+
+**check_out_date**: `check_in_date + nights`로 결정론적 파생이므로 DB Generated Column으로 처리. 수동 저장 시 `checkOut - checkIn ≠ nights` 드리프트 위험이 생긴다.
+
+**향후 확장 — OrderLineNight**: 날짜별 가격·취소·정산이 필요해질 때 추가. 현재 OrderLine에는 미포함(1박 고정이라 Line = Night).
+
+```
+Order
+ └── OrderLine (체크인~아웃, nights, 스냅샷)
+       └── OrderLineNight (박별 room_option_id, stayDate, amount)  ← 추후 추가
+```
+
+---
+
+## 9. 결정 요약
 
 | # | 쟁점 | 결정 | 한 줄 근거 |
 |---|---|---|---|
@@ -192,6 +222,7 @@ payment.amount      =  70,000 (PG 청구분, net)
 | D3 | 상태 어휘 | UNKNOWN+CANCELLED/REFUNDED 포함 | PG 타임아웃·환불을 정확히 표현 |
 | D4 | total_amount | gross(상품가) | `Σpayment_line = total_amount` 불변식이 깔끔 |
 | D5 | event.status | 명시 컬럼 | 시간 파생보다 질의·운영 제어 단순 |
+| D6 | Order/OrderLine 분리 | `event_option_id` Order에서 제거 → OrderLine으로 | Order = 결제 트랜잭션, OrderLine = 투숙 상품. promo/일반 공존 + 연박(OrderLineNight) 확장 수용 |
 | — | 평시/promo 재고 | 분리 | "10개 한정"을 EventOption에 격리 |
 
 > 실시간 재고 차감(reserve/confirm/release)·1인 1구매 락·Redis 키 구조는 재고 설계 문서에서 별도로 다룬다.
