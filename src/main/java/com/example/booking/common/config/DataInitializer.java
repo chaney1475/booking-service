@@ -1,0 +1,91 @@
+package com.example.booking.common.config;
+
+import com.example.booking.domain.event.entity.Event;
+import com.example.booking.domain.event.entity.EventOption;
+import com.example.booking.domain.event.repository.EventOptionRepository;
+import com.example.booking.domain.event.repository.EventRepository;
+import com.example.booking.domain.product.entity.Product;
+import com.example.booking.domain.product.entity.RoomOption;
+import com.example.booking.domain.product.repository.ProductRepository;
+import com.example.booking.domain.product.repository.RoomOptionRepository;
+import com.example.booking.domain.user.entity.User;
+import com.example.booking.domain.user.entity.UserPoint;
+import com.example.booking.domain.user.repository.UserPointRepository;
+import com.example.booking.domain.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+
+// local 프로파일에서만 동작 — prod 환경에서 시드 데이터 삽입 방지
+@Slf4j
+@Component
+@Profile("local")
+@RequiredArgsConstructor
+public class DataInitializer implements ApplicationRunner {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final int PROMO_STOCK = 10;
+
+    private final UserRepository userRepository;
+    private final UserPointRepository userPointRepository;
+    private final ProductRepository productRepository;
+    private final RoomOptionRepository roomOptionRepository;
+    private final EventRepository eventRepository;
+    private final EventOptionRepository eventOptionRepository;
+
+    @Override
+    @Transactional
+    public void run(ApplicationArguments args) {
+        if (userRepository.count() > 0) {
+            log.info("[DataInitializer] skipped — data already exists");
+            return;
+        }
+
+        User user = userRepository.save(new User("테스트유저"));
+        UserPoint point = new UserPoint(user);
+        point.refund(5_000L);
+        userPointRepository.save(point);
+
+        ZonedDateTime now = ZonedDateTime.now(KST);
+
+        // 이벤트 3개 — 6/7/8분 후 시작. 모두 seeder 윈도우(10분) 안에 있어 첫 틱에 시드됨
+        createEvent("디럭스 오션뷰",   now.plusMinutes(6), LocalDate.of(2026, 6, 15), 80_000L, 50_000L);
+        createEvent("스탠다드 가든뷰", now.plusMinutes(7), LocalDate.of(2026, 6, 20), 60_000L, 40_000L);
+        createEvent("패밀리 스위트",   now.plusMinutes(8), LocalDate.of(2026, 6, 25), 120_000L, 90_000L);
+
+        log.info("[DataInitializer] done — userId={} (points: 5,000), events: 3개 생성 (startsAt = now+6m/+7m/+8m)",
+                user.getId());
+        log.info("[DataInitializer] StockSeeder가 다음 정각에 셋 다 감지 → Redis 시드 예정");
+    }
+
+    private void createEvent(String productName, ZonedDateTime startsAt,
+                             LocalDate checkInDate, long basePrice, long promoPrice) {
+        Product product = productRepository.save(new Product(productName, "Asia/Seoul"));
+
+        RoomOption option = roomOptionRepository.save(new RoomOption(
+                product,
+                checkInDate,
+                LocalTime.of(15, 0),
+                LocalTime.of(11, 0),
+                basePrice,
+                PROMO_STOCK
+        ));
+
+        Event event = eventRepository.save(
+                new Event(productName + " 특가", startsAt, startsAt.plusMinutes(30)));
+
+        EventOption eo = eventOptionRepository.save(new EventOption(event, option, promoPrice, PROMO_STOCK));
+
+        log.info("[DataInitializer] eventId={} optionId={} startsAt={}",
+                event.getId(), eo.getId(), startsAt);
+    }
+}
