@@ -432,4 +432,8 @@ com.example.booking
 - `null` 단정 대신 `Optional` 또는 명시적 null 체크 → `orElseThrow(XxxException::new)` 으로 대체
 - DB 페이징은 `Pageable` 사용, 기본 페이지 사이즈 20
 - 금액은 `long` (원 단위), `double` / `float` 사용 금지. DB 컬럼은 돈 = `BIGINT`(`long`) / 수량 = `INT`(`int`)로 매핑
-- 날짜/시간 필드는 `ZonedDateTime` 사용 (`LocalDateTime` 금지) — 이벤트 오픈 시각·결제 시각 등 시점이 타임존에 의존하므로 오프셋을 보존한다
+- 날짜/시간 필드는 기본적으로 `ZonedDateTime` 사용 (`LocalDateTime` 금지) — 이벤트 오픈 시각·결제 시각 등 시점이 타임존에 의존하므로 오프셋을 보존한다
+- **예외 — 달력 날짜 / 숙소 벽시계 시각**: 체크인·체크아웃처럼 타임존 변환이 일어나면 안 되는 필드는 `LocalDate` / `LocalTime` 사용
+  - `checkInDate`, `checkOutDate` → `LocalDate` (Agoda·Expedia·Booking.com 모두 `YYYY-MM-DD`)
+  - `checkInTime`, `checkOutTime` → `LocalTime` (숙소 고정 정책값, 타임존 무관)
+  - JSON 직렬화: `"checkInDate": "2024-06-12"`, `"checkInTime": "15:00:00"`

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -32,7 +33,7 @@ public class CheckoutController {
     )
     @GetMapping
     public ResponseEntity<ApiResponse<CheckoutResponse>> getCheckout(
-            @Valid @ModelAttribute CheckoutRequest request,
+            @ParameterObject @Valid @ModelAttribute CheckoutRequest request,
             @Parameter(description = "사용자 ID", required = true)
             @RequestHeader("X-User-Id") Long userId
     ) {
