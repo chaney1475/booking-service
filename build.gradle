@@ -30,8 +30,8 @@ dependencies {
     // Validation (요청 검증)
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // DB driver (MySQL/MariaDB 계열)
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+    // DB driver (MySQL)
+    runtimeOnly 'com.mysql:mysql-connector-j'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

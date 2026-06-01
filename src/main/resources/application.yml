@@ -3,10 +3,10 @@ spring:
     name: booking-service
 
   datasource:
-    url: jdbc:mariadb://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:booking}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:booking}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
-    driver-class-name: org.mariadb.jdbc.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   sql:
     init:
@@ -19,7 +19,7 @@ spring:
       hibernate:
         format_sql: true
         jdbc:
-          time_zone: Asia/Seoul
+          time_zone: UTC
     open-in-view: false
     defer-datasource-initialization: true   # schema.sql 먼저, JPA validate 나중
 
