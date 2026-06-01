@@ -21,7 +21,6 @@ spring:
         jdbc:
           time_zone: UTC
     open-in-view: false
-    defer-datasource-initialization: true   # schema.sql 먼저, JPA validate 나중
 
   data:
     redis:
@@ -30,6 +29,18 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      redis:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        ignore-exceptions:
+          - com.example.booking.common.exception.BaseException
 
 logging:
   level:

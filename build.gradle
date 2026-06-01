@@ -43,6 +43,10 @@ dependencies {
     implementation 'net.javacrumbs.shedlock:shedlock-spring:6.9.2'
     implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:6.9.2'
 
+    // Circuit Breaker (Resilience4j — Redis 장애 시 서킷 오픈, 빠른 실패)
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
     // Swagger (SpringDoc OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 

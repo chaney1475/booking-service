@@ -282,3 +282,80 @@ UPDATE user_point SET balance = balance + :amount, updated_at = NOW()
 **데드락 없는 이유**
 
 UPDATE 문은 해당 행에 대해 락을 획득하고 즉시 해제함. 단일 행 UPDATE이므로 여러 행을 순서 없이 잠그는 패턴 자체가 없어 사이클이 구조적으로 불가능함.
+
+---
+
+## 쟁점 14. Resilience4j 서킷 브레이커 — Redis 장애 시 서비스 보호
+
+### 상황
+
+Redis가 느려지거나 응답 불능이 되면 `StockServiceImpl`의 Redis 호출이 타임아웃까지 블록됨. 스레드가 묶이면서 앱 전체가 함께 멈추는 cascading failure 위험이 있음.
+
+### 선택
+
+Resilience4j `@CircuitBreaker`를 `StockServiceImpl` 메서드에 적용. 실패율 50% 초과 시 서킷을 열어 Redis 요청 없이 즉시 fallback으로 전환함.
+
+| 메서드 | 서킷 오픈 시 동작 | 이유 |
+|---|---|---|
+| `isAvailable` | `false` 반환 (degrade) | GET 부수효과 없음, partial 응답 허용 |
+| `reserve` | 503 `BOOKING_UNAVAILABLE` | 재고 보장 없이 예약 허용 불가 |
+| `confirm` | 로그만 기록 | 주문 PENDING 유지, 정산 배치가 사후 처리 |
+| `release` | 로그만 기록 | under-sell 허용 범위 (쟁점 3 참조) |
+
+서킷은 10s 후 HALF-OPEN으로 전환해 3회 시험 요청으로 Redis 복구를 확인함.
+
+### 판단 근거
+
+**Resilience4j를 선택한 이유**
+
+Spring Boot 3 공식 지원 라이브러리로 `@CircuitBreaker` 어노테이션 하나로 AOP 기반 적용이 가능함. 대안인 Spring Cloud CircuitBreaker는 추상화 레이어가 추가되어 설정이 복잡해짐. Hystrix는 deprecated. Resilience4j는 스프링부트 starter가 있어 auto-configure + YAML 설정만으로 동작해 도입 비용이 낮음.
+
+**`BaseException`을 ignore하는 이유**
+
+SOLD_OUT, ALREADY_PURCHASED 등 비즈니스 예외는 Redis가 정상 응답한 결과임. 이 예외까지 실패로 계산하면 서킷이 불필요하게 열림. `ignore-exceptions`에 `BaseException`을 등록해 인프라 레벨 오류(커넥션 실패, 타임아웃)만 카운트함.
+
+---
+
+## 쟁점 15. 고가용성 — 500~1000 TPS 프로모션 트래픽 대응
+
+### 상황
+
+평시 50 TPS → 00시 프로모션 시작 시 1~5분간 500~1000 TPS 급증. 인프라 증설이 제한적인 상황에서 코드 레벨에서 부하를 흡수해야 함.
+
+### 선택
+
+DB 락 병목 제거(Redis 재고 권위) + Lua EVAL 원자 처리 + 서킷 브레이커 조합으로 TPS 급증을 처리. 별도 Rate Limiter나 큐잉 없이 현 구조로 대응 가능한 것으로 판단함.
+
+### 판단 근거
+
+**DB 락 병목 제거 (핵심)**
+
+MySQL `SELECT FOR UPDATE` 방식은 동시 요청이 행 락을 직렬화해 TPS가 급감함. Redis는 싱글스레드 커맨드 모델로 락 없이 원자 연산을 처리함. Lua EVAL 한 번으로 1인 1구매 확인 + 재고 차감이 완료되므로 DB 왕복 없이 재고 확정이 끝남. Redis 단일 인스턴스 기준 약 10만 ops/sec 처리 가능 → 500~1000 TPS는 충분한 여유.
+
+**서킷 브레이커 — cascading failure 차단**
+
+Redis가 느려지면 서킷이 열려 이후 요청이 즉시 503으로 빠짐. 커넥션 큐 쌓임이 앱 스레드를 잠식하는 연쇄 장애를 방지함.
+
+**fail-closed 503 — 과부하 시 명시적 거부**
+
+Redis 없이 재고 원자성을 보장할 수 없으므로 POST /booking은 503을 반환함. 클라이언트가 재시도를 제어할 수 있어 무한 재시도로 인한 추가 부하를 방지함.
+
+**인프라 확장이 필요한 시점**
+
+현재 구조는 TPS 1,000 수준까지 대응 가능한 것으로 판단함. 그 이상이 되거나 이벤트 유실을 완전히 방지해야 하는 요건이 생기면 Kafka를 도입해 예약 요청을 큐잉하고 소비자가 Redis 차감·DB 기록을 순차 처리하는 구조로 전환 가능함.
+
+---
+
+## 쟁점 16. Docker Compose — 로컬 개발 인프라 구성
+
+### 상황
+
+MySQL + Redis 두 인프라가 필요하나 로컬 설치 없이 코드 수정 없이 실행 가능해야 함.
+
+### 선택
+
+`docker-compose.yml` 하나로 MySQL 8 + Redis 7 컨테이너를 띄움. healthcheck를 설정해 MySQL 준비 완료 전에 앱이 기동되지 않도록 함.
+
+### 판단 근거
+
+Docker Compose는 멀티 컨테이너 로컬 환경을 선언적으로 정의하는 표준 도구임. `healthcheck`로 의존성 순서를 강제해 schema.sql 실행 전 MySQL이 준비 완료됨을 보장함. Redis는 `--appendonly yes`로 AOF를 켜 컨테이너 재시작 시 재고 시딩 전 상태를 유지함. 프로덕션 환경(Sentinel, Cluster)과 연결 설정만 다르고 앱 코드는 동일하게 동작함.
