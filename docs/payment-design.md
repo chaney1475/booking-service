@@ -181,6 +181,10 @@ flowchart TD
 - **즉시 실패 처리 금지**: 카드가 실제 승인됐을 수 있어 포인트 즉시 환불 시 이중 결제 위험
 - **정산 배치**: 인터페이스·구조 설계만. 실제 배치 잡은 미구현 (PG 연동 생략 범위와 동일)
 
+**실시간 보정 (GET /orders/{orderId}):**
+
+주문 조회 시 status == UNKNOWN이면 즉시 `PaymentGateway.inquire()` 를 호출해 결과를 확정한다. 승인됨이면 confirm + PAID, 미승인이면 재고 release + 포인트 환불 + FAILED로 처리한다. 결과가 아직 없으면 UNKNOWN 그대로 반환. 배치와 조회 API 모두 동일한 inquire 인터페이스를 사용한다. 상세 흐름은 [멱등성 설계 3절](idempotency-design.md#3-unknown-실시간-보정--get-ordersorderid) 참조.
+
 ---
 
 ## 9. 결정 요약
