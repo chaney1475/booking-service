@@ -4,19 +4,7 @@
 
 ---
 
-## 1. 핵심 원칙
-
-| # | 원칙 |
-|---|---|
-| 1 | **내부 먼저, 외부 나중** — 되돌리기 쉬운 포인트를 먼저, 되돌리기 어려운 PG를 마지막에 |
-| 2 | **조합 규칙은 PaymentPolicy 단일 책임** — 비즈니스 규칙이 레이어 밖으로 새지 않게 |
-| 3 | **포인트는 Router를 타지 않는다** — PG가 아닌 내부 자원이므로 PointProcessor가 직접 처리 |
-| 4 | **타임아웃 ≠ 실패** — UNKNOWN은 동결 후 inquire로 확정. 즉시 실패 처리 금지 |
-| 5 | **재시도는 PG 서버 오류(5xx)에만 2회 제한** — 응답 타임아웃은 이중 결제 위험으로 재시도 금지 |
-
----
-
-## 2. 컴포넌트 구조
+## 컴포넌트 구조
 
 ```
 BookingService
@@ -41,13 +29,32 @@ PaymentOrchestrator          ← 결제 흐름 총괄 (포인트 보상 책임)
 | `PaymentGateway` (각 구현체) | PG 승인·취소·조회 외부 호출, 재시도 내부 처리 | — |
 | `BookingService` | 재고 reserve/confirm/release | 재고 반납 |
 
-**보상 책임 경계**: "차감한 주체가 보상한다". 포인트는 `PaymentOrchestrator`, 재고는 `BookingService`. 둘이 서로 건드리지 않는다.
+**보상 책임 경계**: "차감한 주체가 보상한다". 포인트는 `PaymentOrchestrator`, 재고는 `BookingService`. 둘이 서로 건드리지 않음.
 
 ---
 
-## 3. 결제 수단 및 조합 규칙
+## 핵심 원칙
 
-### 3.1 지원 수단
+**1. 내부 먼저, 외부 나중**
+포인트(내부 DB)를 먼저 차감하고 PG(외부)를 마지막에 호출. PG 취소는 외부 API 재호출이 필요하고 그마저 실패할 수 있어, 실패 시 항상 내부 자원만 되돌리도록 순서를 고정. 이 순서 덕에 PG 취소를 부를 경로가 구조적으로 없음.
+
+**2. 조합 규칙은 PaymentPolicy 단일 책임**
+카드+페이 혼용 불가, 금액 합 검증 등 결제 규칙을 PaymentPolicy 한 곳에 집중. 규칙이 BookingService나 Controller에 흩어지면 변경 시 여러 곳 수정 필요 — 수정 포인트 1개로 확보.
+
+**3. 포인트는 Router를 타지 않음**
+PaymentGateway 인터페이스는 외부 PG 호출 추상화용. 포인트를 Gateway로 포장하면 외부 네트워크 호출처럼 취급되어 재시도·타임아웃 처리가 맞지 않음. PointProcessor가 DB 트랜잭션으로 직접 처리.
+
+**4. 타임아웃 ≠ 실패 → UNKNOWN 동결**
+응답 타임아웃은 PG가 요청을 받았을 수도 있는 불명 상태. 즉시 포인트 환불 시 PG가 실제 승인한 경우 이중 결제 위험. 동결 후 inquire로 확정이 유일하게 안전한 경로.
+
+**5. 재시도는 5xx에만, 타임아웃은 금지**
+5xx = PG 미처리 확실 → 재시도 안전. 응답 타임아웃 = 요청이 이미 PG에 도달했을 수 있음 → 재시도 시 이중 승인 위험. 연결 타임아웃(요청 미도달)은 재시도 안전 — Gateway 내부에서 처리.
+
+---
+
+## 결제 수단
+
+### 지원 수단
 
 | 수단 | 타입 | 처리 경로 |
 |---|---|---|
@@ -55,7 +62,7 @@ PaymentOrchestrator          ← 결제 흐름 총괄 (포인트 보상 책임)
 | `PAY` | PG (외부) | Router → YPayGateway |
 | `POINT` | 내부 | PointProcessor 직접 |
 
-### 3.2 조합 규칙 (PaymentPolicy)
+### 조합 규칙 (PaymentPolicy)
 
 ```
 현금성 PG(카드·페이)는 최대 1개, 포인트는 선택
@@ -79,7 +86,7 @@ void validate(List<PaymentLine> lines, long orderAmount) {
 }
 ```
 
-### 3.3 확장성 — 새 수단 추가 시
+### 확장성 — 새 수단 추가 시
 
 `BookingService` / `PaymentOrchestrator` 수정 없음. 아래 두 가지만:
 1. `PaymentGateway` 구현체 추가
@@ -87,7 +94,9 @@ void validate(List<PaymentLine> lines, long orderAmount) {
 
 ---
 
-## 4. 결제 흐름 (정상 경로)
+## 결제 흐름
+
+### 정상 경로
 
 ![결제 시퀀스 다이어그램](../diagram/booking-api-diagram.png)
 
@@ -108,9 +117,45 @@ flowchart TD
 **T1 (로컬 트랜잭션 1)**: 포인트 차감 + `point_transaction(USE)` + 주문·라인 `PENDING` insert  
 **T2 (로컬 트랜잭션 2)**: 주문 `PAID` + 결제 `SUCCESS` + `payment_line` insert
 
+### REJECTED — 보상
+
+PG가 `REJECTED`(명확한 거절)이면 앞서 차감한 자원을 역순으로 복원:
+
+```mermaid
+flowchart TD
+    A["REJECTED"] --> B["PointProcessor.refund()\n포인트 환불 (T1 롤백)"]
+    B --> C["[Redis] release\n재고 반납"]
+    C --> D["주문 FAILED / 결제 FAILED 저장"]
+    D --> E["실패 응답"]
+```
+
+PG가 마지막이라 이 경로에서 **PG 취소 호출 없음**. 내부 자원(포인트·재고)만 되돌림.
+
+> **보상 책임 분리**: 포인트 환불과 주문 FAILED 마킹은 `PaymentOrchestrator.handleRejected()`가 수행. 재고 반납과 멱등 키 해제는 호출자인 `BookingFacade`의 catch 블록이 담당. "차감한 주체가 보상한다" 원칙의 엄격한 적용.
+
+### UNKNOWN — 동결 및 조회
+
+```mermaid
+flowchart TD
+    A["UNKNOWN 발생"] --> B["주문 UNKNOWN 저장\n포인트·재고 동결"]
+    B --> C["사용자: '결제 처리 중입니다. 완료 시 안내해드립니다.'"]
+    D["[설계] 정산 배치"] -->|findByStatus UNKNOWN| E["OrderRepository"]
+    E --> F["PaymentGateway.inquire(orderId)"]
+    F -->|승인됨| G["confirm → PAID"]
+    F -->|미승인| H["보상 → FAILED"]
+```
+
+- **즉시 실패 처리 금지**: 카드가 실제 승인됐을 수 있어 포인트 즉시 환불 시 이중 결제 위험
+- **정산 배치**: 인터페이스·구조 설계만. 실제 배치 잡은 미구현 (PG 연동 생략 범위와 동일)
+
+**실시간 보정 (GET /orders/{orderId})**
+status == UNKNOWN이면 즉시 `PaymentGateway.inquire()` 호출해 결과 확정.
+승인됨 → confirm + PAID / 미승인 → release + 포인트 환불 + FAILED / 결과 없음 → UNKNOWN 유지.
+상세 흐름은 [멱등성 설계](idempotency-design.md#3-unknown-실시간-보정--get-ordersorderid) 참조.
+
 ---
 
-## 5. PG 인터페이스
+## PG 인터페이스
 
 ```java
 interface PaymentGateway {
@@ -130,7 +175,7 @@ enum PaymentOutcome {
 
 ---
 
-## 6. 재시도 전략
+## 재시도 전략
 
 PG 응답 유형별 처리:
 
@@ -141,7 +186,7 @@ PG 응답 유형별 처리:
 | 4xx (한도 초과 등) | 사용자 오류 | 재시도 없음 → REJECTED |
 | 5xx (PG 서버 오류) | PG 내부 | **2회까지 재시도** (exponential backoff) → 그래도 실패 시 UNKNOWN |
 
-재시도 로직은 **Gateway 구현체 내부**에서 처리. `Orchestrator`는 최종 `PaymentOutcome`만 받는다.
+재시도 로직은 **Gateway 구현체 내부**에서 처리. `Orchestrator`는 최종 `PaymentOutcome`만 받음.
 
 ```
 1차 시도 → PG 5xx
@@ -149,55 +194,3 @@ PG 응답 유형별 처리:
   대기 (backoff) → 3차 재시도 → PG 5xx
   → UNKNOWN 반환
 ```
-
----
-
-## 7. 결제 실패 — 보상
-
-PG가 `REJECTED`(명확한 거절)이면 앞서 차감한 자원을 역순으로 복원:
-
-```mermaid
-flowchart TD
-    A["REJECTED"] --> B["PointProcessor.refund()\n포인트 환불 (T1 롤백)"]
-    B --> C["[Redis] release\n재고 반납"]
-    C --> D["주문 FAILED / 결제 FAILED 저장"]
-    D --> E["실패 응답"]
-```
-
-PG가 마지막이라 이 경로에서 **PG 취소 호출 없음**. 내부 자원(포인트·재고)만 되돌린다.
-
-> **보상 책임 분리**: 포인트 환불과 주문 FAILED 마킹은 `PaymentOrchestrator.handleRejected()`가 수행한다. 재고 반납과 멱등 키 해제는 호출자인 `BookingFacade`의 catch 블록이 담당한다. "차감한 주체가 보상한다" 원칙의 엄격한 적용.
-
----
-
-## 8. UNKNOWN — 동결 및 조회
-
-```mermaid
-flowchart TD
-    A["UNKNOWN 발생"] --> B["주문 UNKNOWN 저장\n포인트·재고 동결"]
-    B --> C["사용자: '결제 처리 중입니다. 완료 시 안내해드립니다.'"]
-    D["[설계] 정산 배치"] -->|findByStatus UNKNOWN| E["OrderRepository"]
-    E --> F["PaymentGateway.inquire(orderId)"]
-    F -->|승인됨| G["confirm → PAID"]
-    F -->|미승인| H["보상 → FAILED"]
-```
-
-- **즉시 실패 처리 금지**: 카드가 실제 승인됐을 수 있어 포인트 즉시 환불 시 이중 결제 위험
-- **정산 배치**: 인터페이스·구조 설계만. 실제 배치 잡은 미구현 (PG 연동 생략 범위와 동일)
-
-**실시간 보정 (GET /orders/{orderId}):**
-
-주문 조회 시 status == UNKNOWN이면 즉시 `PaymentGateway.inquire()` 를 호출해 결과를 확정한다. 승인됨이면 confirm + PAID, 미승인이면 재고 release + 포인트 환불 + FAILED로 처리한다. 결과가 아직 없으면 UNKNOWN 그대로 반환. 배치와 조회 API 모두 동일한 inquire 인터페이스를 사용한다. 상세 흐름은 [멱등성 설계 3절](idempotency-design.md#3-unknown-실시간-보정--get-ordersorderid) 참조.
-
----
-
-## 9. 결정 요약
-
-| 쟁점 | 결정 | 근거 |
-|---|---|---|
-| 조합 규칙 검증 위치 | `PaymentPolicy` (결제 서비스 내) | 비즈니스 규칙이 예약 도메인으로 새지 않게, 규칙 변경 시 한 곳만 수정 |
-| 포인트 차감 순서 | PG 호출 전 (내부 먼저) | PG 취소(외부 호출) 없이 내부 보상만으로 정리 가능 |
-| 포인트 Router 경유 여부 | 직접 (PointProcessor) | 포인트는 외부 PG가 아닌 내부 자원 — Gateway로 포장하면 억지 |
-| UNKNOWN 처리 | 동결 + inquire (배치 미구현) | 즉시 실패 처리 시 이중 결제 위험, PG 연동 생략 범위와 일치 |
-| PG 재시도 | 5xx에만 2회, 타임아웃은 금지 | 응답 타임아웃 재시도 = 이중 결제 위험 |
-| 결제수단 확장 | Gateway 구현체 + Router 등록만 | OCP — Booking/Orchestrator 수정 없이 수단 추가 |
