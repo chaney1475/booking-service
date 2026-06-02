@@ -14,14 +14,17 @@ public record BookingRequest(
         @Schema(description = "이벤트 옵션 ID", example = "1")
         @NotNull Long optionId,
 
-        @Schema(description = "PG 결제 수단. 포인트 단독 결제 시 null 가능", example = "CREDIT_CARD",
+        @Schema(description = "PG 결제 수단. Y_POINT 단독 결제 시 null 가능", example = "CREDIT_CARD",
                 allowableValues = {"CREDIT_CARD", "PAY"})
         PaymentMethod paymentMethod,
 
         @Schema(description = "포인트 사용액 (0 이상)", example = "5000")
-        @Min(0) long pointsToUse
+        @Min(0) long pointsToUse,
+
+        @Schema(description = "프론트에서 전달받은 PG 토큰. PG 결제 수단 없으면 null 가능", example = "pg_token_abc123")
+        String paymentKey
 ) {
     public BookingCommand toCommand(Long userId, String idempotencyKey) {
-        return new BookingCommand(userId, idempotencyKey, eventId, optionId, paymentMethod, pointsToUse);
+        return new BookingCommand(userId, idempotencyKey, eventId, optionId, paymentMethod, pointsToUse, paymentKey);
     }
 }

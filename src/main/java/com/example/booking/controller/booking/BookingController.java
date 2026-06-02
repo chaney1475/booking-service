@@ -38,7 +38,11 @@ public class BookingController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody BookingRequest request
     ) {
-        BookingDto dto = bookingFacade.book(request.toCommand(userId, idempotencyKey));
-        return ResponseEntity.ok(ApiResponse.ok(BookingResponse.from(dto)));
+        BookingDto dto = bookingFacade.book(
+                request.toCommand(userId, idempotencyKey)
+        );
+
+        ApiResponse<BookingResponse> response = ApiResponse.ok(BookingResponse.from(dto));
+        return ResponseEntity.ok(response);
     }
 }
