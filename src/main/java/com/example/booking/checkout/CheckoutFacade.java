@@ -4,7 +4,7 @@ import com.example.booking.checkout.command.CheckoutCommand;
 import com.example.booking.checkout.dto.CheckoutDto;
 import com.example.booking.event.entity.EventOption;
 import com.example.booking.event.service.EventQueryService;
-import com.example.booking.point.service.UserPointService;
+import com.example.booking.point.service.PointProcessor;
 import com.example.booking.product.entity.RoomOption;
 import com.example.booking.stock.service.StockService;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CheckoutFacade {
 
     private final EventQueryService eventQueryService;
-    private final UserPointService userPointService;
+    private final PointProcessor pointProcessor;
     private final StockService stockService;
 
     /**
@@ -33,7 +33,7 @@ public class CheckoutFacade {
         boolean available = stockService.isAvailable(command.eventId(), command.optionId());
 
         // 사용 가능한 포인트 잔액 조회 — 결제 화면에서 차감 가능 금액 표시용
-        long userPoints = userPointService.getBalance(command.userId());
+        long userPoints = pointProcessor.getBalance(command.userId());
 
         return new CheckoutDto(
                 eo.getEvent().getId(),

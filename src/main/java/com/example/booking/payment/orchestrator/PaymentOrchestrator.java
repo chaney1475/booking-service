@@ -11,7 +11,7 @@ import com.example.booking.payment.gateway.PaymentCommand;
 import com.example.booking.payment.gateway.PaymentGateway;
 import com.example.booking.payment.gateway.PaymentOutcome;
 import com.example.booking.payment.router.PaymentGatewayRouter;
-import com.example.booking.point.service.UserPointService;
+import com.example.booking.point.service.PointProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
 public class PaymentOrchestrator {
 
     private final OrderService orderService;
-    private final UserPointService userPointService;
+    private final PointProcessor pointProcessor;
     private final PaymentGatewayRouter gatewayRouter;
     private final PaymentPolicy paymentPolicy;
 
@@ -56,7 +56,7 @@ public class PaymentOrchestrator {
 
         // 포인트 차감 — PG 호출 전 (내부 먼저 원칙)
         if (pointsToUse > 0) {
-            userPointService.deduct(command.userId(), pointsToUse, order);
+            pointProcessor.deduct(command.userId(), pointsToUse, order);
         }
 
         // 포인트 단독 결제: PG 없이 바로 승인 컨텍스트 반환
@@ -89,7 +89,7 @@ public class PaymentOrchestrator {
     private BaseException handleRejected(BookingCommand command, Order order,
                                          PaymentOutcome outcome, long pointsToUse) {
         if (pointsToUse > 0) {
-            userPointService.refund(command.userId(), pointsToUse, order);
+            pointProcessor.refund(command.userId(), pointsToUse, order);
         }
         orderService.markFailed(order.getId(), outcome.failReason());
         return new BaseException(ErrorCode.PAYMENT_FAILED);

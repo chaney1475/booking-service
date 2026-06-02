@@ -164,6 +164,8 @@ flowchart TD
 
 PG가 마지막이라 이 경로에서 **PG 취소 호출 없음**. 내부 자원(포인트·재고)만 되돌린다.
 
+> **보상 책임 분리**: 포인트 환불과 주문 FAILED 마킹은 `PaymentOrchestrator.handleRejected()`가 수행한다. 재고 반납과 멱등 키 해제는 호출자인 `BookingFacade`의 catch 블록이 담당한다. "차감한 주체가 보상한다" 원칙의 엄격한 적용.
+
 ---
 
 ## 8. UNKNOWN — 동결 및 조회
