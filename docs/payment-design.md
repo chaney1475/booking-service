@@ -89,6 +89,8 @@ void validate(List<PaymentLine> lines, long orderAmount) {
 
 ## 4. 결제 흐름 (정상 경로)
 
+![결제 시퀀스 다이어그램](../diagram/booking-api-diagram.png)
+
 ```mermaid
 flowchart TD
     A["POST /booking"] --> B["PaymentPolicy 조합 검증"]
