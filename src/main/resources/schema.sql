@@ -182,7 +182,7 @@ CREATE TABLE payment (
 CREATE TABLE payment_line (
     id         BIGINT      NOT NULL AUTO_INCREMENT,
     payment_id BIGINT      NOT NULL,
-    method     VARCHAR(20) NOT NULL                     COMMENT 'CREDIT_CARD|PAY|POINT',
+    method     VARCHAR(20) NOT NULL                     COMMENT 'CREDIT_CARD|PAY|Y_POINT',
     amount     BIGINT      NOT NULL,
     created_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),

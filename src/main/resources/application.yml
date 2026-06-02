@@ -46,6 +46,11 @@ resilience4j:
         ignore-exceptions:
           - com.example.booking.common.exception.BaseException
 
+payment:
+  mock:
+    failure-rate: 0.3
+    timeout-rate: 0.05
+
 logging:
   level:
     org.hibernate.SQL: debug
