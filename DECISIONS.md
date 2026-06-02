@@ -258,11 +258,19 @@ Resilience4j `@CircuitBreaker`를 `StockServiceImpl` 메서드에 적용. 실패
 | `confirm` | 로그만 기록 | 주문 PENDING 유지, 정산 배치가 사후 처리 |
 | `release` | 로그만 기록 | under-sell 허용 범위 (쟁점 3 참조) |
 
-서킷은 10s 후 HALF-OPEN으로 전환해 3회 시험 요청으로 Redis 복구를 확인함.
+서킷은 30s 후 HALF-OPEN으로 전환해 5회 시험 요청으로 Redis 복구를 확인함. Redis가 느리게 응답하는 부분 장애도 감지하도록 1s 초과 호출을 slow call로 집계하고, slow call 비율이 80% 이상이면 서킷을 오픈함.
 
 #### 판단 근거
 
 Spring Boot 3 공식 지원 라이브러리로 `@CircuitBreaker` 어노테이션 하나로 AOP 기반 적용이 가능함. Hystrix는 deprecated, Spring Cloud CircuitBreaker는 추상화 레이어가 추가되어 설정이 복잡해짐. `ignore-exceptions`에 `BaseException`을 등록해 SOLD_OUT 등 비즈니스 예외는 실패 카운트에서 제외함.
+
+**설정값 선택 이유**
+
+COUNT_BASED는 트래픽 변동 폭이 크면 윈도우 지속 시간이 불안정해짐. 평시 50 TPS에서는 size=10 윈도우가 200ms를 커버하지만, 프로모션 피크 1000 TPS에서는 10ms로 줄어들어 Redis 순간 지연 하나로도 서킷이 오픈될 수 있음. TIME_BASED로 전환해 10초 고정 윈도우 안에서 실패율을 측정하면 TPS 변화에 무관하게 안정된 신호를 얻을 수 있음.
+
+wait-duration-in-open-state를 30s로 설정한 이유는 Redis 복구나 Sentinel failover 완료까지 통상 10~30s가 걸리는데, 10s면 OPEN→HALF_OPEN 반복 진동이 발생해 회복 중인 Redis에 불필요한 부하를 줄 수 있기 때문임.
+
+HALF_OPEN 시험 요청을 5회로 늘린 이유는 피크 TPS 환경에서 3회로는 통계적으로 부족해 오류 판정이 불안정할 수 있기 때문임.
 
 ---
 
