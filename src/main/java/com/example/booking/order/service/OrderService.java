@@ -1,6 +1,7 @@
 package com.example.booking.order.service;
 
 import com.example.booking.event.entity.EventOption;
+import com.example.booking.order.dto.OrderDetailDto;
 import com.example.booking.order.entity.Order;
 import com.example.booking.payment.entity.PaymentMethod;
 
@@ -9,6 +10,8 @@ import java.util.Optional;
 public interface OrderService {
 
     Optional<Order> findByIdempotencyKey(String idempotencyKey);
+
+    OrderDetailDto findOrderDetail(Long orderId, Long userId);
 
     Order createPending(EventOption eventOption, Long userId, String idempotencyKey,
                         long promoPrice, long pgAmount);

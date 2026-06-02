@@ -3,6 +3,7 @@ package com.example.booking.order.service;
 import com.example.booking.common.exception.BaseException;
 import com.example.booking.common.exception.ErrorCode;
 import com.example.booking.event.entity.EventOption;
+import com.example.booking.order.dto.OrderDetailDto;
 import com.example.booking.order.entity.Order;
 import com.example.booking.order.entity.OrderLine;
 import com.example.booking.order.repository.OrderLineRepository;
@@ -19,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -67,7 +69,7 @@ public class OrderServiceImpl implements OrderService {
             paymentLineRepository.save(new PaymentLine(payment, pgMethod, pgAmount));
         }
         if (pointsUsed > 0) {
-            paymentLineRepository.save(new PaymentLine(payment, PaymentMethod.POINT, pointsUsed));
+            paymentLineRepository.save(new PaymentLine(payment, PaymentMethod.Y_POINT, pointsUsed));
         }
     }
 
@@ -87,6 +89,44 @@ public class OrderServiceImpl implements OrderService {
         order.markUnknown();
         paymentRepository.findByOrderId(orderId)
                 .ifPresent(p -> p.markUnknown());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderDetailDto findOrderDetail(Long orderId, Long userId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (!order.getUser().getId().equals(userId)) {
+            throw new BaseException(ErrorCode.ORDER_NOT_FOUND);
+        }
+
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new BaseException(ErrorCode.PAYMENT_NOT_FOUND));
+
+        List<PaymentLine> lines = paymentLineRepository.findByPaymentId(payment.getId());
+
+        long pointsUsed = lines.stream()
+                .filter(l -> l.getMethod() == PaymentMethod.Y_POINT)
+                .mapToLong(PaymentLine::getAmount)
+                .sum();
+
+        PaymentMethod pgMethod = lines.stream()
+                .filter(l -> l.getMethod().isPg())
+                .map(PaymentLine::getMethod)
+                .findFirst()
+                .orElse(null);
+
+        long pgAmount = order.getTotalAmount() - pointsUsed;
+
+        return new OrderDetailDto(
+                order.getId(),
+                order.getStatus(),
+                order.getTotalAmount(),
+                pgAmount,
+                pointsUsed,
+                pgMethod
+        );
     }
 
     private Order getOrder(Long orderId) {
