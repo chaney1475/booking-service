@@ -29,16 +29,6 @@
 
 <img src="docs/diagram/booking_payment_resolution_flow.svg" width="600" alt="POST /booking 결제 확정 처리">
 
-**흐름 핵심 요약**
-
-| 단계 | 목적 |
-|---|---|
-| ① 멱등 체크 | 짧은 간격 중복 요청 → 기존 결과 즉시 반환 |
-| ② reserve.lua (원자) | 1인 1구매 + oversell 방지. Redis 단일 EVAL → 분산 락 불필요 |
-| ③ T1 (PG 전 커밋) | 포인트(내부) 먼저 차감. PG 실패 시 내부 보상만으로 정리 가능 |
-| ④ confirm / release | PG 결과에 따라 sold 확정 또는 재고 복원 |
-| ⑤ UNKNOWN 동결 | 타임아웃 ≠ 실패. 즉시 환불 시 이중 결제 위험 |
-
 ---
 
 ### GET /checkout — 주문서 조회
@@ -95,31 +85,14 @@
 | Y페이 + 포인트 | ✅ |
 | 신용카드 + Y페이 | ❌ 혼용 불가 |
 
-**PG 응답별 처리 전략**
-
-| PG 응답 | 처리 |
-|---|---|
-| APPROVED | confirm → PAID |
-| REJECTED (4xx, 한도초과) | 보상 후 FAILED. 재시도 무의미 |
-| 5xx (PG 서버 오류) | Gateway 내부에서 2회 재시도 후 UNKNOWN |
-| 응답 타임아웃 | UNKNOWN 동결. **재시도 금지** (이중 결제 위험) |
-
 ---
 
 ## Redis 장애 Fallback
 
 <img src="docs/diagram/redis_failure_fallback.svg" width="600" alt="Redis 장애 Fallback">
 
-**Redis 복구 시 재구성 방법**
-
-| 항목 | 재구성 |
-|---|---|
-| `promo_stock` | `promo_stock_total − COUNT(orders WHERE status IN (PAID, PENDING, UNKNOWN))` |
-| `sold` | `COUNT(orders WHERE status = PAID)` |
-| `purchased` SET | PAID·PENDING·UNKNOWN 주문의 userId로 재구성 |
-| `inflight` key | 재구성 안 함 (TTL 휘발 정보) |
-
-UNKNOWN까지 포함해 보수적 계산 → 최악이 under-sell. UNKNOWN을 제외하면 정산 배치가 해당 주문을 PAID로 확정할 때 oversell이 발생할 수 있다.
+Redis 장애 시 서킷 브레이커가 빠른 실패로 완화하고, Sentinel failover 완료 후 자동 복귀한다.
+키 재구성 방법 및 설계 근거는 [DECISIONS.md — 쟁점 5](DECISIONS.md#쟁점-5-redis-sentinel--인프라-단-장애-자동-복구) 참조.
 
 ---
 
@@ -150,6 +123,29 @@ docker compose up -d
 
 MySQL healthcheck 통과 후 Spring Boot가 `schema.sql`을 자동 실행하고 JPA validate를 수행한다.
 접속: http://localhost:8080 / Swagger UI: http://localhost:8080/swagger-ui.html
+
+> **시드 데이터 타이밍**
+> - 앱 기동 시 `DataInitializer`가 유저 1,000명과 이벤트 3개를 생성한다 (startsAt = 현재 시각).
+> - 기동 후 **1분 이내**: `StockSeeder`(매분 0초 실행)가 이벤트를 감지해 Redis 재고 시딩 + OPEN 전환을 처리한다.
+> - 이후 바로 예약이 가능해진다.
+
+### 부하 테스트 (k6)
+
+macOS에서 k6를 직접 실행하면 `kern.ipc.somaxconn` 기본값(128) 제한으로 결과가 왜곡된다.
+반드시 app과 k6를 동일한 Docker 네트워크에서 실행해야 한다.
+
+```bash
+# 1. jar 빌드
+./gradlew build
+
+# 2. app + 인프라 기동 (perf 프로파일 활성화)
+docker compose --profile perf up -d
+
+# 3. app healthy 확인 후 시나리오 실행
+docker compose run --rm k6 run /scripts/s2_booking_spike.js
+```
+
+시나리오별 상세 설명 및 측정 결과는 [`docs/performance.md`](docs/performance.md) 참조.
 
 ---
 
@@ -223,9 +219,9 @@ MySQL healthcheck 통과 후 Spring Boot가 `schema.sql`을 자동 실행하고 
 | Header | `Idempotency-Key` | String | ✅ | 클라이언트 발급 멱등키 (UUID 권장) |
 | Body | `eventId` | Long | ✅ | 이벤트 ID |
 | Body | `optionId` | Long | ✅ | 이벤트 옵션 ID |
-| Body | `payments` | List | ✅ | 결제 수단 목록 (최대 2개, 혼합 불가 규칙 적용) |
-| Body | `payments[].method` | String | ✅ | `CREDIT_CARD` \| `PAY` \| `POINT` |
-| Body | `payments[].amount` | Long | ✅ | 해당 수단 결제 금액 (원) |
+| Body | `paymentMethod` | String | - | PG 결제 수단. `CREDIT_CARD` \| `PAY`. Y_POINT 단독 결제 시 null |
+| Body | `pointsToUse` | Long | ✅ | 포인트 사용액 (0 이상, 미사용 시 0) |
+| Body | `paymentKey` | String | - | 프론트에서 발급받은 PG 토큰. PG 결제 수단 없으면 null |
 
 **Response 200**
 
@@ -244,13 +240,13 @@ MySQL healthcheck 통과 후 Spring Boot가 `schema.sql`을 자동 실행하고 
 
 | HTTP | code | 설명 |
 |---|---|---|
-| 400 | `INVALID_PAYMENT_COMBINATION` | 신용카드 + Y페이 혼용 |
-| 400 | `PAYMENT_AMOUNT_MISMATCH` | 결제 합계 ≠ 상품가 |
+| 400 | `INVALID_PAYMENT_COMBINATION` | 결제 수단·포인트 조합 불일치 (PG 수단 없이 PG 금액 발생, 또는 그 역) |
+| 400 | `PAYMENT_AMOUNT_MISMATCH` | 포인트 사용액이 상품가 초과 |
 | 400 | `INSUFFICIENT_POINT` | 포인트 잔액 부족 |
 | 400 | `PAYMENT_REJECTED` | PG 한도 초과 등 거절 |
 | 409 | `SOLD_OUT` | 재고 소진 |
 | 409 | `ALREADY_PURCHASED` | 동일 이벤트 중복 구매 |
-| 409 | `DUPLICATE_ORDER` | 이미 처리된 멱등키 |
+| 409 | `DUPLICATE_ENTRY` | 동일 멱등키 요청이 결제 처리 중 (동시 중복) |
 | 503 | `BOOKING_UNAVAILABLE` | Redis 일시 장애 — 재시도 필요 |
 
 ---

@@ -51,12 +51,20 @@ redis ──┘         │
 
 **실행 방법:**
 
+> ⚠️ **macOS에서 k6를 직접 실행하면 결과가 무의미하다.**
+> macOS `kern.ipc.somaxconn` 기본값(128)으로 인해 1,000 VU 중 872건이 OS 레벨에서 즉시 거부된다.
+> 서버만 Docker로 올리고 k6를 호스트에서 실행해도 포트 포워딩이 macOS 네트워크 스택을 통과하므로 동일한 문제가 발생한다.
+> **반드시 k6도 Docker 컨테이너로 실행해야 유효한 결과를 얻을 수 있다.**
+
 ```bash
-# 인프라 + 앱 기동
-docker compose up -d
+# 인프라 + 앱 기동 (WarmupRunner 완료 후 healthy 상태가 되면 준비 완료)
+docker compose --profile perf up -d
+
+# (첫 실행 또는 시나리오 간 상태 초기화)
+./scripts/k6/reset.sh
 
 # 시나리오 실행 (예시)
-docker compose run --rm -e EVENT_ID=1 -e OPTION_ID=1 k6 run /scripts/s2_booking_spike.js
+docker compose run --rm k6 run /scripts/s2_booking_spike.js
 ```
 
 ---
@@ -113,7 +121,7 @@ VU 34~1000: idemKey = "idem-vu{N}-i{ITER}" → 1회씩 단건 요청
 |------------|------|
 | 동일 VU 30회 응답 | 같은 `orderId` / `status` |
 | 중복 결제 건수 | = 0 |
-| IN_PROGRESS 중 동시 요청 | 409 `DUPLICATE_ORDER` 후 재요청 시 동일 응답 |
+| IN_PROGRESS 중 동시 요청 | 409 `DUPLICATE_ENTRY` 후 재요청 시 동일 응답 |
 
 ---
 

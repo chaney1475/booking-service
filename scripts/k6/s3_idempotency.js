@@ -8,7 +8,7 @@
  *   - VU 1~33의 30회 응답이 모두 같은 orderId 반환
  *   - 중복 결제 건수 0 (DB orders 행이 VU당 최대 1개)
  *   - 전체 PAID <= 10 (재고 정합성 유지)
- *   - 409 DUPLICATE_ORDER: 진행 중 동시 유입 시 반환
+ *   - 409 DUPLICATE_ENTRY: 진행 중 동시 유입 시 반환 (Redis idem IN_PROGRESS)
  *
  * 실행:
  *   k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=1 -e OPTION_ID=1 -e PROMO_PRICE=59000 s3_idempotency.js
@@ -21,7 +21,7 @@ const bookingDuration      = new Trend('booking_duration', true);
 const paidCount            = new Counter('booking_paid');
 const duplicateOkCount     = new Counter('idempotent_replays');   // 중복 요청 → 동일 응답 반환
 const mismatchCount        = new Counter('idempotent_mismatches'); // orderId 불일치 = 버그
-const duplicateOrderCount  = new Counter('duplicate_order_409');   // 처리 중 충돌
+const duplicateEntryCount  = new Counter('duplicate_entry_409');   // 처리 중 충돌 (Redis IN_PROGRESS)
 
 // VU별 첫 번째 orderId 저장 (재요청과 비교용)
 const firstOrderId = {};
@@ -88,8 +88,8 @@ export function duplicateFlow() {
   try { orderId = res.json('data.orderId'); } catch (_) {}
   try { code    = res.json('error.code');   } catch (_) {}
 
-  if (code === 'DUPLICATE_ORDER') {
-    duplicateOrderCount.add(1);
+  if (code === 'DUPLICATE_ENTRY') {
+    duplicateEntryCount.add(1);
     return;
   }
 
