@@ -188,6 +188,24 @@ AI 활용 기록은 [`docs/ai-usage.md`](docs/ai-usage.md) 참조.
 
 ---
 
+### Mock PG
+
+실제 PG사 연동은 생략하고 `CardGateway` / `YPayGateway`가 Mock으로 동작한다.
+
+기본 설정(`application.yml`)에서는 `failure-rate: 0.0`이므로 모든 PG 요청이 승인된다.
+결제 실패·타임아웃 시나리오를 테스트하려면 `application.yml`의 값을 조정하거나,
+`perf` 프로파일(`application-perf.yml`, `failure-rate: 0.3 / timeout-rate: 0.05`)을 활성화한다.
+
+```yaml
+# application.yml — 로컬 테스트용 조정 예시
+payment:
+  mock:
+    failure-rate: 0.3   # 30% 확률로 PAYMENT_REJECTED
+    timeout-rate: 0.05  # 5% 확률로 UNKNOWN (타임아웃 동결)
+```
+
+---
+
 ### DDL
 
 전체 테이블 정의: [`src/main/resources/schema.sql`](src/main/resources/schema.sql)

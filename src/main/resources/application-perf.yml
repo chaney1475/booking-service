@@ -1,3 +1,8 @@
+payment:
+  mock:
+    failure-rate: 0.3   # 부하 테스트 시 PG 거절 시나리오 활성화
+    timeout-rate: 0.05  # 부하 테스트 시 PG 타임아웃 시나리오 활성화
+
 logging:
   level:
     org.hibernate.SQL: warn

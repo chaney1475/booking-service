@@ -65,8 +65,8 @@ resilience4j:
 
 payment:
   mock:
-    failure-rate: 0.3
-    timeout-rate: 0.05
+    failure-rate: 0.0   # 기본값 0 — 로컬 테스트 시 항상 승인. 실패율 테스트는 application-perf.yml 참조
+    timeout-rate: 0.0
 
 logging:
   level:
