@@ -119,7 +119,7 @@ CREATE TABLE event_option (
 CREATE TABLE orders (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
     user_id         BIGINT       NOT NULL,
-    idempotency_key VARCHAR(80)  NOT NULL               COMMENT '클라이언트 발급 멱등키',
+    idempotency_key VARCHAR(255) NOT NULL               COMMENT '클라이언트 발급 멱등키',
     status          VARCHAR(20)  NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING|PAID|FAILED|UNKNOWN|CANCELLED',
     total_amount    BIGINT       NOT NULL               COMMENT '상품가 gross (Σorder_line.line_amount)',
     created_at      DATETIME(6)  NOT NULL,

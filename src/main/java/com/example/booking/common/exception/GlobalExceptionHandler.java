@@ -4,6 +4,7 @@ import com.example.booking.common.response.ApiResponse;
 import com.example.booking.common.response.ErrorResponse;
 import com.example.booking.common.exception.PaymentUnknownException;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -62,6 +63,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.fail(new ErrorResponse(ErrorCode.INVALID_INPUT.name(), message)));
+    }
+
+    // @Validated + @Size 등 메서드 파라미터 제약 위반 (@RequestHeader, @RequestParam)
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException e) {
+        String message = e.getConstraintViolations().stream()
+                .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
                 .collect(Collectors.joining(", "));
         return ResponseEntity
                 .badRequest()
