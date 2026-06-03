@@ -6,7 +6,6 @@ import com.example.booking.order.entity.Order;
 import com.example.booking.point.entity.PointTransaction;
 import com.example.booking.point.entity.PointTransactionType;
 import com.example.booking.point.repository.PointTransactionRepository;
-import com.example.booking.user.entity.UserPoint;
 import com.example.booking.user.repository.UserPointRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,9 +21,7 @@ public class PointProcessorImpl implements PointProcessor {
     @Override
     @Transactional(readOnly = true)
     public long getBalance(Long userId) {
-        return userPointRepository.findByUserId(userId)
-                .map(UserPoint::getBalance)
-                .orElse(0L);
+        return userPointRepository.findBalanceByUserId(userId).orElse(0L);
     }
 
     @Override

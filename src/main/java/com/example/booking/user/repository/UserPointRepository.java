@@ -12,6 +12,9 @@ public interface UserPointRepository extends JpaRepository<UserPoint, Long> {
 
     Optional<UserPoint> findByUserId(Long userId);
 
+    @Query("SELECT up.balance FROM UserPoint up WHERE up.userId = :userId")
+    Optional<Long> findBalanceByUserId(@Param("userId") Long userId);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE UserPoint up SET up.balance = up.balance - :amount, up.updatedAt = CURRENT_TIMESTAMP WHERE up.userId = :userId AND up.balance >= :amount")
     int deductBalance(@Param("userId") Long userId, @Param("amount") long amount);
