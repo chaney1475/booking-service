@@ -28,6 +28,9 @@ public enum ErrorCode {
     // Point
     INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "포인트 잔액이 부족합니다."),
 
+    // Auth
+    MISSING_USER_CONTEXT(HttpStatus.UNAUTHORIZED, "사용자 인증 정보가 없습니다."),
+
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "잘못된 입력입니다."),
     BOOKING_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "잠시 후 다시 시도해주세요."),

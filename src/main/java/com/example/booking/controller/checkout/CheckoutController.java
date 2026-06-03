@@ -5,6 +5,7 @@ import com.example.booking.checkout.dto.CheckoutDto;
 import com.example.booking.common.response.ApiResponse;
 import com.example.booking.controller.checkout.request.CheckoutRequest;
 import com.example.booking.controller.checkout.response.CheckoutResponse;
+import com.example.booking.common.web.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,7 +15,6 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -34,8 +34,8 @@ public class CheckoutController {
     @GetMapping
     public ResponseEntity<ApiResponse<CheckoutResponse>> getCheckout(
             @ParameterObject @Valid @ModelAttribute CheckoutRequest request,
-            @Parameter(description = "사용자 ID", required = true)
-            @RequestHeader("X-User-Id") Long userId
+            @Parameter(description = "사용자 ID (게이트웨이 주입)", required = true)
+            @CurrentUser Long userId
     ) {
         CheckoutDto dto = checkoutFacade.getCheckout(request.toCommand(userId));
         return ResponseEntity.ok(ApiResponse.ok(CheckoutResponse.from(dto)));

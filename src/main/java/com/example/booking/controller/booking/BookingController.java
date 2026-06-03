@@ -5,6 +5,7 @@ import com.example.booking.booking.dto.BookingDto;
 import com.example.booking.common.response.ApiResponse;
 import com.example.booking.controller.booking.request.BookingRequest;
 import com.example.booking.controller.booking.response.BookingResponse;
+import com.example.booking.common.web.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,8 +33,8 @@ public class BookingController {
     )
     @PostMapping
     public ResponseEntity<ApiResponse<BookingResponse>> book(
-            @Parameter(description = "사용자 ID", required = true)
-            @RequestHeader("X-User-Id") Long userId,
+            @Parameter(description = "사용자 ID (게이트웨이 주입)", required = true)
+            @CurrentUser Long userId,
             @Parameter(description = "클라이언트 발급 멱등키 (UUID 권장)", required = true)
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody BookingRequest request
