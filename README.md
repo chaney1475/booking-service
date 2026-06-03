@@ -137,8 +137,8 @@ AI 활용 기록은 [`docs/ai-usage.md`](docs/ai-usage.md) 참조.
 | HTTP | code | 설명 |
 |---|---|---|
 | 400 | `INVALID_INPUT` | 필수 파라미터 누락 |
-| 404 | `EVENT_NOT_FOUND` | 이벤트 없음 |
-| 404 | `EVENT_OPTION_NOT_FOUND` | 옵션 없음 |
+| 400 | `EVENT_NOT_OPEN` | 이벤트 오픈 전 또는 종료 후 접근 |
+| 404 | `EVENT_OPTION_NOT_FOUND` | 이벤트·옵션 없음 |
 
 ---
 
@@ -156,7 +156,7 @@ AI 활용 기록은 [`docs/ai-usage.md`](docs/ai-usage.md) 참조.
 | Body | `eventId` | Long | ✅ | 이벤트 ID |
 | Body | `optionId` | Long | ✅ | 이벤트 옵션 ID |
 | Body | `paymentMethod` | String | - | PG 결제 수단. `CREDIT_CARD` \| `PAY`. Y_POINT 단독 결제 시 null |
-| Body | `pointsToUse` | Long | ✅ | 포인트 사용액 (0 이상, 미사용 시 0) |
+| Body | `pointsToUse` | Long | - | 포인트 사용액 (0 이상, 미사용 시 0) |
 | Body | `paymentKey` | String | - | 프론트에서 발급받은 PG 토큰. PG 결제 수단 없으면 null |
 
 **Response 200**
@@ -176,6 +176,7 @@ AI 활용 기록은 [`docs/ai-usage.md`](docs/ai-usage.md) 참조.
 
 | HTTP | code | 설명 |
 |---|---|---|
+| 400 | `EVENT_NOT_OPEN` | 이벤트 오픈 전 또는 종료 후 접근 |
 | 400 | `INVALID_PAYMENT_COMBINATION` | 결제 수단·포인트 조합 불일치 (PG 수단 없이 PG 금액 발생, 또는 그 역) |
 | 400 | `PAYMENT_AMOUNT_MISMATCH` | 포인트 사용액이 상품가 초과 |
 | 400 | `INSUFFICIENT_POINT` | 포인트 잔액 부족 |
