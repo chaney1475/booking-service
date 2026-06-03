@@ -2,6 +2,11 @@
  * 시나리오 1 — 조회 폭주 (Checkout Spike)
  * 1,000 VU 동시에 GET /api/checkout 호출 → Redis 읽기 + MySQL 조회 경합 측정
  *
+ * [closed-loop / 포화 테스트]
+ * 목적: 자원 한도(2 CPU, Hikari 25) 에서 에러 없이 요청을 소화하는지 검증.
+ *      레이턴시는 Little's Law에 따라 대기 시간이 지배적 — 응답 시간 SLA가 아닌
+ *      errors=0, 5xx=0이 핵심 지표다.
+ *
  * 실행:
  *   k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=1 -e OPTION_ID=1 s1_checkout_spike.js
  */
@@ -22,8 +27,7 @@ export const options = {
     },
   },
   thresholds: {
-    checkout_duration: ['p(99)<2000'],
-    checkout_errors:   ['count==0'],
+    checkout_errors: ['count==0'], // 포화 테스트 — 레이턴시가 아닌 에러 0이 핵심
   },
 };
 

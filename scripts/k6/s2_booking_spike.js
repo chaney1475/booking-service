@@ -2,6 +2,10 @@
  * 시나리오 2 — 구매 폭주 (Booking Spike)
  * 1,000 VU 동시에 POST /api/booking 시도 → reserve.lua 원자 점유 + DB saga 처리 능력 측정
  *
+ * [closed-loop / 포화 테스트]
+ * 목적: 1,000 VU 동시 폭주에서 재고 정합성(PAID ≤ 10, oversell 0)과 5xx=0 검증.
+ *      레이턴시는 대기 시간이 지배적 — 정합성이 핵심 지표다.
+ *
  * 실행:
  *   k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=1 -e OPTION_ID=1 -e PROMO_PRICE=59000 s2_booking_spike.js
  */
@@ -24,9 +28,8 @@ export const options = {
     },
   },
   thresholds: {
-    booking_duration: ['p(99)<1000'],
-    booking_paid:     ['count<=10'],
-    booking_errors:   ['count<10'],
+    booking_paid:   ['count<=10'], // 핵심: 재고(10)를 절대 초과할 수 없다
+    booking_errors: ['count<10'],  // 포화 테스트 — 레이턴시가 아닌 정합성이 핵심
   },
 };
 

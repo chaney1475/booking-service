@@ -1,11 +1,13 @@
 /**
- * 시나리오 5 — E2E 혼합 부하 (Mixed Load)
+ * 시나리오 5 — E2E 혼합 부하 (Mixed Load) [open-loop / TPS 검증]
  *
- * flowA (조회 전용): 500 req/s → GET /api/checkout
- * flowB (전체 플로우): 500 req/s → GET /api/checkout → POST /api/booking
+ * flowA (조회 전용): 500 req/s → GET /api/checkout   (constant-arrival-rate)
+ * flowB (전체 플로우): 500 req/s → POST /api/booking  (constant-arrival-rate)
  * 합산 목표 TPS: 1,000
  *
- * 목적: 조회 트래픽과 구매 트래픽이 서로의 응답시간에 미치는 교차 영향 측정
+ * [open-loop 방식으로 1,000 TPS 지속 가능성을 검증하는 유일한 시나리오]
+ * s1/s2/s3/s4는 closed-loop(VU 기반) 포화 테스트라 레이턴시가 대기 시간 지배적.
+ * 이 시나리오만 도착률을 고정해 실제 SLA를 의미 있게 측정할 수 있다.
  *
  * 실행:
  *   k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=1 -e OPTION_ID=1 -e PROMO_PRICE=59000 s5_e2e_mixed.js
@@ -43,10 +45,10 @@ export const options = {
     },
   },
   thresholds: {
-    checkout_duration: ['p(99)<2000'],
+    checkout_duration: ['p(99)<2000'], // open-loop 1,000 TPS 기준 SLA
     booking_duration:  ['p(99)<1500'],
     booking_paid:      ['count<=10'],
-    total_errors:      ['count<50'], // 5xx < 1% of 5,000 total requests
+    total_errors:      ['count<50'],
   },
 };
 
