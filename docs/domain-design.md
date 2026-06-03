@@ -38,7 +38,7 @@ Product → RoomOption  (객실타입 + 체크인날짜 + 1박 고정)
 
 - 재고는 옵션(RoomOption) 단위로 존재. promo(초특가) 이벤트 재고가 일반 판매 재고와 겹치는 문제를 막기 위해 이벤트 상품은 1박 고정 + promo(초특가) 재고를 `EventOption.promo_stock_total`에 별도 격리
 - 평시 재고(`stock`)와 promo(초특가) 재고(`promo_stock_total`) 분리 — 평시 손님이 promo(초특가) 재고 잠식 차단
-- 평시 구매 API 미구현 (과제 범위 밖). `stock` 컬럼은 카탈로그 사실성을 위해 보유
+- 평시 구매 API 미구현 (현재 구현 범위 밖). `stock` 컬럼은 카탈로그 사실성을 위해 보유
 
 ---
 

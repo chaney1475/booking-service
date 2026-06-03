@@ -14,7 +14,7 @@
 
 s1~s4는 **closed-loop(VU 기반) 포화 테스트**다. VU가 응답을 받아야 다음 요청을 보내므로, 1,000 VU가 동시에 줄을 서는 구조가 된다. Little's Law에 따라 `응답시간 ≈ VU 수 ÷ 처리량`이 되어 **레이턴시는 대기 시간이 지배적**이다. 이 시나리오의 핵심 지표는 레이턴시가 아닌 **정합성(PAID ≤ 10, oversell 0, 5xx = 0)** 이다.
 
-s5는 **open-loop(constant-arrival-rate) TPS 검증**이다. 도착률을 checkout 500 req/s + booking 500 req/s = 1,000 TPS로 고정해, 큐가 쌓이지 않고 지속 처리 가능한지 검증한다. 과제 요건 "500~1,000 TPS"를 검증하는 유일한 시나리오다.
+s5는 **open-loop(constant-arrival-rate) TPS 검증**이다. 도착률을 checkout 500 req/s + booking 500 req/s = 1,000 TPS로 고정해, 큐가 쌓이지 않고 지속 처리 가능한지 검증한다. 서비스 요건 "500~1,000 TPS"를 검증하는 유일한 시나리오다.
 
 환경 변수로 주입:
 
