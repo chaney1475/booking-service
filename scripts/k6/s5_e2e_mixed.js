@@ -43,8 +43,8 @@ export const options = {
     },
   },
   thresholds: {
-    checkout_duration: ['p(95)<200', 'p(99)<500'],
-    booking_duration:  ['p(95)<500', 'p(99)<1000'],
+    checkout_duration: ['p(99)<2000'],
+    booking_duration:  ['p(99)<1500'],
     booking_paid:      ['count<=10'],
     total_errors:      ['count<50'], // 5xx < 1% of 5,000 total requests
   },

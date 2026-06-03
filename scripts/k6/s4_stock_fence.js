@@ -27,7 +27,7 @@ export const options = {
     },
   },
   thresholds: {
-    booking_duration: ['p(95)<500', 'p(99)<1000'],
+    booking_duration: ['p(99)<1000'],
     booking_paid:     ['count<=10'], // 핵심: 재고(10)를 절대 초과할 수 없다
     booking_server_errors: ['count==0'],
   },

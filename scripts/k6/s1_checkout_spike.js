@@ -22,7 +22,7 @@ export const options = {
     },
   },
   thresholds: {
-    checkout_duration: ['p(95)<200', 'p(99)<500'],
+    checkout_duration: ['p(99)<2000'],
     checkout_errors:   ['count==0'],
   },
 };

@@ -17,85 +17,6 @@
 
 ---
 
-## 시퀀스 다이어그램
-
-### POST /booking — 예약 및 결제 (핵심 흐름)
-
-#### 1단계 — 진입 검증 게이트
-
-<img src="docs/diagram/booking_entry_gates_flow.svg" width="600" alt="POST /booking 진입 검증 게이트">
-
-#### 2단계 — 결제 확정 처리
-
-<img src="docs/diagram/booking_payment_resolution_flow.svg" width="600" alt="POST /booking 결제 확정 처리">
-
----
-
-### GET /checkout — 주문서 조회
-
-<img src="docs/diagram/checkout_query_flow.svg" width="600" alt="GET /checkout 주문서 조회 흐름">
-
----
-
-## 도메인 모델 (ERD)
-
-<img src="docs/diagram/booking-erd.png" width="600" alt="도메인 모델 ERD">
-
-**주문/결제 도메인 핵심 불변식**
-
-```
-Σ order_line.line_amount  =  orders.total_amount (gross)
-                          =  Σ payment_line.amount
-```
-
-| 엔티티 | 역할 | 핵심 컬럼 |
-|---|---|---|
-| `orders` | 결제 트랜잭션 헤더 | `idempotency_key UNIQUE`, `status`, `total_amount` |
-| `order_line` | 투숙 1건 (예약 종류 담당) | `room_option_id`, `event_option_id(NULL=일반)`, `nights`, `unit_price` |
-| `payment` | PG 결과 기록 | `amount(net)`, `pg_tx_ref`, `status` |
-| `payment_line` | 수단별 금액 내역 | `method(CREDIT_CARD·PAY·POINT)`, `amount` |
-| `event_option` | 초특가 이벤트 옵션 | `promo_price`, `promo_stock_total(=10, Redis seed 원천)` |
-
----
-
-## 재고 상태 전이
-
-<img src="docs/diagram/stock_state_transition.svg" width="600" alt="재고 상태 전이">
-
-| 시나리오 | 결과 | 이유 |
-|---|---|---|
-| PG 성공 | confirm → sold 확정 | oversell 원천 차단 |
-| PG 실패 | release → 재고 복원 | 보상 트랜잭션 |
-| 서버 크래시 | TTL 만료 → under-sell | oversell보다 under-sell이 낫다 (운영 정리 가능) |
-
----
-
-## 결제 컴포넌트 구조
-
-<img src="docs/diagram/payment_component_structure.svg" width="600" alt="결제 컴포넌트 구조">
-
-**지원 결제 조합**
-
-| 조합 | 허용 |
-|---|---|
-| 신용카드 단독 | ✅ |
-| Y페이 단독 | ✅ |
-| 포인트 단독 | ✅ |
-| 신용카드 + 포인트 | ✅ |
-| Y페이 + 포인트 | ✅ |
-| 신용카드 + Y페이 | ❌ 혼용 불가 |
-
----
-
-## Redis 장애 Fallback
-
-<img src="docs/diagram/redis_failure_fallback.svg" width="600" alt="Redis 장애 Fallback">
-
-Redis 장애 시 서킷 브레이커가 빠른 실패로 완화하고, Sentinel failover 완료 후 자동 복귀한다.
-키 재구성 방법 및 설계 근거는 [DECISIONS.md — 쟁점 5](DECISIONS.md#쟁점-5-redis-sentinel--인프라-단-장애-자동-복구) 참조.
-
----
-
 ## 기술 스택
 
 | 항목 | 선택 | 비고 |
@@ -124,10 +45,18 @@ docker compose up -d
 MySQL healthcheck 통과 후 Spring Boot가 `schema.sql`을 자동 실행하고 JPA validate를 수행한다.
 접속: http://localhost:8080 / Swagger UI: http://localhost:8080/swagger-ui.html
 
-> **시드 데이터 타이밍**
-> - 앱 기동 시 `DataInitializer`가 유저 1,000명과 이벤트 3개를 생성한다 (startsAt = 현재 시각).
-> - 기동 후 **1분 이내**: `StockSeeder`(매분 0초 실행)가 이벤트를 감지해 Redis 재고 시딩 + OPEN 전환을 처리한다.
-> - 이후 바로 예약이 가능해진다.
+> **시드 데이터 (local 프로파일)**
+>
+> | # | 상품명 | 오픈 시각 | 비고 |
+> |---|---|---|---|
+> | 1 | 디럭스 오션뷰 | 즉시 | 체크인 2026-06-15 |
+> | 2 | 스탠다드 가든뷰 | 즉시 | 체크인 2026-06-20 |
+> | 3 | 패밀리 스위트 | 즉시 | 체크인 2026-06-25 |
+> | 4 | 프리미엄 스위트 | **기동 후 2분** | `EVENT_NOT_OPEN` → OPEN 전환 확인용 |
+>
+> - 이벤트 1~3은 앱 기동 시 `DataInitializer`가 Redis 시딩 + OPEN 전환까지 직접 처리해 즉시 예약 가능하다.
+> - 이벤트 4는 `StockSeeder`(매분 0초 실행)가 2분 후 감지해 자동으로 Redis 시드 + OPEN 전환한다.
+> - 유저 1,000명이 각 10,000 포인트를 보유한 상태로 생성된다.
 
 ### 부하 테스트 (k6)
 
@@ -143,7 +72,13 @@ docker compose --profile perf up -d
 
 # 3. app healthy 확인 후 시나리오 실행
 docker compose run --rm k6 run /scripts/s2_booking_spike.js
+
+# 재실행 전 상태 초기화 (재고·주문·포인트 리셋)
+bash scripts/k6/reset.sh
 ```
+
+> **테스트 환경 (MSA 단일 파드 기준)**: app 2 CPU / 2G, mysql 1 CPU / 512M, redis 0.5 CPU / 256M
+> 응답 시간은 환경에 따라 달라진다. **재고 정합성(`PAID ≤ 10`, 5xx = 0)이 핵심 검증 지표**다.
 
 시나리오별 상세 설명 및 측정 결과는 [`docs/performance.md`](docs/performance.md) 참조.
 
@@ -268,3 +203,82 @@ docker compose run --rm k6 run /scripts/s2_booking_spike.js
 ```bash
 ./gradlew test
 ```
+
+## 시퀀스 다이어그램
+
+### POST /booking — 예약 및 결제 (핵심 흐름)
+
+#### 1단계 — 진입 검증 게이트
+
+<img src="docs/diagram/booking_entry_gates_flow.svg" width="600" alt="POST /booking 진입 검증 게이트">
+
+#### 2단계 — 결제 확정 처리
+
+<img src="docs/diagram/booking_payment_resolution_flow.svg" width="600" alt="POST /booking 결제 확정 처리">
+
+---
+
+### GET /checkout — 주문서 조회
+
+<img src="docs/diagram/checkout_query_flow.svg" width="600" alt="GET /checkout 주문서 조회 흐름">
+
+---
+
+## 도메인 모델 (ERD)
+
+<img src="docs/diagram/booking-erd.png" width="600" alt="도메인 모델 ERD">
+
+**주문/결제 도메인 핵심 불변식**
+
+```
+Σ order_line.line_amount  =  orders.total_amount (gross)
+                          =  Σ payment_line.amount
+```
+
+| 엔티티 | 역할 | 핵심 컬럼 |
+|---|---|---|
+| `orders` | 결제 트랜잭션 헤더 | `idempotency_key UNIQUE`, `status`, `total_amount` |
+| `order_line` | 투숙 1건 (예약 종류 담당) | `room_option_id`, `event_option_id(NULL=일반)`, `nights`, `unit_price` |
+| `payment` | PG 결과 기록 | `amount(net)`, `pg_tx_ref`, `status` |
+| `payment_line` | 수단별 금액 내역 | `method(CREDIT_CARD·PAY·POINT)`, `amount` |
+| `event_option` | 초특가 이벤트 옵션 | `promo_price`, `promo_stock_total(=10, Redis seed 원천)` |
+
+---
+
+## 재고 상태 전이
+
+<img src="docs/diagram/stock_state_transition.svg" width="600" alt="재고 상태 전이">
+
+| 시나리오 | 결과 | 이유 |
+|---|---|---|
+| PG 성공 | confirm → sold 확정 | oversell 원천 차단 |
+| PG 실패 | release → 재고 복원 | 보상 트랜잭션 |
+| 서버 크래시 | TTL 만료 → under-sell | oversell보다 under-sell이 낫다 (운영 정리 가능) |
+
+---
+
+## 결제 컴포넌트 구조
+
+<img src="docs/diagram/payment_component_structure.svg" width="600" alt="결제 컴포넌트 구조">
+
+**지원 결제 조합**
+
+| 조합 | 허용 |
+|---|---|
+| 신용카드 단독 | ✅ |
+| Y페이 단독 | ✅ |
+| 포인트 단독 | ✅ |
+| 신용카드 + 포인트 | ✅ |
+| Y페이 + 포인트 | ✅ |
+| 신용카드 + Y페이 | ❌ 혼용 불가 |
+
+---
+
+## Redis 장애 Fallback
+
+<img src="docs/diagram/redis_failure_fallback.svg" width="600" alt="Redis 장애 Fallback">
+
+Redis 장애 시 서킷 브레이커가 빠른 실패로 완화하고, Sentinel failover 완료 후 자동 복귀한다.
+키 재구성 방법 및 설계 근거는 [DECISIONS.md — 쟁점 5](DECISIONS.md#쟁점-5-redis-sentinel--인프라-단-장애-자동-복구) 참조.
+
+---

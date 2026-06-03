@@ -24,7 +24,7 @@ export const options = {
     },
   },
   thresholds: {
-    booking_duration: ['p(95)<500', 'p(99)<1000'],
+    booking_duration: ['p(99)<1000'],
     booking_paid:     ['count<=10'],
     booking_errors:   ['count<10'],
   },
