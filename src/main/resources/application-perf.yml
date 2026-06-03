@@ -5,20 +5,7 @@ logging:
     com.example.booking.payment: warn
 
 spring:
-  datasource:
-    hikari:
-      maximum-pool-size: 25   # MySQL 1 CPU 기준 적정 동시 쿼리 수
-      minimum-idle: 10
-      connection-timeout: 5000
-
   jpa:
     properties:
       hibernate:
         format_sql: false
-
-server:
-  tomcat:
-    threads:
-      max: 200        # 2 CPU 기준 — 400은 컨텍스트 스위칭 과부하
-      min-spare: 100
-    accept-count: 300
