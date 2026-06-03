@@ -23,9 +23,9 @@
 |---|---|---|
 | Language | Java 21 | |
 | Framework | Spring Boot 3.4 | |
-| RDB | MariaDB (MySQL 계열) | |
+| RDB | MySQL 8 | |
 | Cache | Redis | 라이브 재고 권위 |
-| 분산 스케줄러 락 | ShedLock 6.9 (Redis provider) | 00시 재고 시딩 중복 실행 방지 |
+| 분산 스케줄러 락 | ShedLock 6.9.2 (Redis provider) | 00시 재고 시딩 중복 실행 방지 |
 | ORM | Spring Data JPA (Hibernate) | |
 
 ---
@@ -81,6 +81,7 @@ bash scripts/k6/reset.sh
 > 응답 시간은 환경에 따라 달라진다. **재고 정합성(`PAID ≤ 10`, 5xx = 0)이 핵심 검증 지표**다.
 
 시나리오별 상세 설명 및 측정 결과는 [`docs/performance.md`](docs/performance.md) 참조.
+AI 활용 기록은 [`docs/ai-usage.md`](docs/ai-usage.md) 참조.
 
 ---
 
@@ -240,7 +241,7 @@ bash scripts/k6/reset.sh
 | `orders` | 결제 트랜잭션 헤더 | `idempotency_key UNIQUE`, `status`, `total_amount` |
 | `order_line` | 투숙 1건 (예약 종류 담당) | `room_option_id`, `event_option_id(NULL=일반)`, `nights`, `unit_price` |
 | `payment` | PG 결과 기록 | `amount(net)`, `pg_tx_ref`, `status` |
-| `payment_line` | 수단별 금액 내역 | `method(CREDIT_CARD·PAY·POINT)`, `amount` |
+| `payment_line` | 수단별 금액 내역 | `method(CREDIT_CARD·PAY·Y_POINT)`, `amount` |
 | `event_option` | 초특가 이벤트 옵션 | `promo_price`, `promo_stock_total(=10, Redis seed 원천)` |
 
 ---

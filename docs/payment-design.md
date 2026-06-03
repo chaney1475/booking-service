@@ -60,7 +60,7 @@ PaymentGateway 인터페이스는 외부 PG 호출 추상화용. 포인트를 Ga
 |---|---|---|
 | `CREDIT_CARD` | PG (외부) | Router → CardGateway |
 | `PAY` | PG (외부) | Router → YPayGateway |
-| `POINT` | 내부 | PointProcessor 직접 |
+| `Y_POINT` | 내부 | PointProcessor 직접 |
 
 ### 조합 규칙 (PaymentPolicy)
 

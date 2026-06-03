@@ -94,7 +94,7 @@ Order
 
 ```
 Payment (PG 관점)         PaymentLine (수단별 1행)
-  amount (net)       →    CREDIT_CARD / PAY / POINT
+  amount (net)       →    CREDIT_CARD / PAY / Y_POINT
   status                  Σ amount = orders.total_amount
 ```
 
@@ -182,7 +182,7 @@ erDiagram
 - UNIQUE(order_id)
 
 **payment_line** `payment_id(FK) · method · amount`
-- method: CREDIT_CARD | PAY | POINT
+- method: CREDIT_CARD | PAY | Y_POINT
 
 #### 포인트
 
@@ -198,5 +198,5 @@ erDiagram
 | `event.status` | `SCHEDULED`, `OPEN`, `CLOSED` |
 | `orders.status` | `PENDING`, `PAID`, `FAILED`, `UNKNOWN`, `CANCELLED` |
 | `payment.status` | `PENDING`, `SUCCESS`, `FAILED`, `UNKNOWN`, `REFUNDED` |
-| `payment_line.method` | `CREDIT_CARD`, `PAY`, `POINT` |
+| `payment_line.method` | `CREDIT_CARD`, `PAY`, `Y_POINT` |
 | `point_transaction.type` | `USE`, `REFUND` |

@@ -79,9 +79,10 @@ PG 멱등키 = `orderId` (merchantUid)
 
 ---
 
-## UNKNOWN 실시간 보정 — GET /orders/{orderId}
+## UNKNOWN 실시간 보정 — GET /orders/{orderId} (설계 의도, 미구현)
 
 주문 조회 시 status == UNKNOWN이면 `PaymentGateway.inquire()` 를 즉시 호출해 결과 확정.
+현재 `GET /orders/{id}`는 DB 상태를 그대로 반환하며, 아래 inquire 흐름은 미구현 상태다.
 
 ```
 GET /orders/{orderId}
@@ -94,7 +95,7 @@ GET /orders/{orderId}
            │    → 완료 주문서 반환
            │
            ├─ [미승인 — 문제 있는 경우]
-           │    compensate.lua(재고 release) + pointRefund + markFailed → FAILED
+           │    release.lua(재고 release) + pointRefund + markFailed → FAILED
            │    → 실패 응답, 포인트 반환 처리됨 안내
            │
            └─ [아직 결과 없음]
