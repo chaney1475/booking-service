@@ -7,8 +7,29 @@ description: Test specialist for this booking-service project. Writes unit, inte
 
 ## 사전 작업
 `docs/CONVENTION.md`를 읽어 레이어 구조와 컨벤션을 파악한다.
+`docs/test-plan.md`를 읽어 작성 대상 테스트 케이스 목록과 스타일 기준을 파악한다.
 테스트 대상 파일들을 읽어 비즈니스 로직과 예외 흐름을 파악한다.
 기존 테스트 파일(`src/test/java/com/example/booking/`)이 있으면 먼저 읽어 스타일을 맞춘다.
+
+## 유저 컨텍스트 헤더 주의사항
+모든 `/api/**` 엔드포인트는 `UserContextInterceptor`가 `X-User-Id` 헤더를 검증한다.
+헤더 누락 시 401이 반환되므로, HTTP 요청을 직접 보내는 테스트에서는 반드시 헤더를 포함해야 한다.
+
+**MockMvc 통합 테스트:**
+```java
+mockMvc.perform(post("/api/booking")
+        .header("X-User-Id", "1")          // 필수
+        .header("Idempotency-Key", UUID.randomUUID().toString())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(requestJson))
+```
+
+**@WebMvcTest 슬라이스 테스트:**
+`@WebMvcTest`는 `WebMvcConfig`를 자동 로드하므로 `CurrentUserArgumentResolver`와 `UserContextInterceptor`가 활성화된다.
+헤더를 넣지 않는 테스트 케이스(401 검증)와 넣는 케이스를 분리해서 작성한다.
+
+**컨트롤러 단위 테스트에서 Interceptor 우회가 필요한 경우:**
+`@MockBean` 또는 `excludeFilters`로 `UserContextInterceptor`를 제외하지 말고, 헤더를 포함한 정상 요청으로 테스트한다.
 
 ## 테스트 대상
 $ARGUMENTS

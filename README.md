@@ -258,3 +258,17 @@ MySQL healthcheck 통과 후 Spring Boot가 `schema.sql`을 자동 실행하고 
 ### DDL
 
 전체 테이블 정의: [`src/main/resources/schema.sql`](src/main/resources/schema.sql)
+
+---
+
+## 테스트
+
+| 테스트 클래스 | 방식 | 주요 검증 |
+|---|---|---|
+| `BookingFacadeTest` | Mockito 단위 | 해피패스 3종, 멱등성 4종(DB/Redis replay·중복·UNKNOWN), 보상 로직 4종 |
+| `PaymentOrchestratorTest` | Mockito 단위 | PG APPROVED/REJECTED/UNKNOWN × 포인트 유무, 포인트 단독 결제 |
+| `StockServiceIntegrationTest` | Testcontainers (Redis 7) | Lua 원자성(reserve·confirm·release), 동시성 50명 vs 재고 10개, release 멱등성 |
+
+```bash
+./gradlew test
+```
