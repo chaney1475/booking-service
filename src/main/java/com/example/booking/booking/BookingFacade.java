@@ -55,7 +55,11 @@ public class BookingFacade {
             // PENDING·FAILED → 2계층으로 (재시도 허용)
         }
 
-        // 2계층: Redis SET NX — 동시 중복 차단 + 성공 결과 캐시 replay
+        // 2계층: 이벤트·옵션 존재 및 OPEN 상태 검증 — 순수 읽기, idem 획득 전에 수행해 실패 시 cleanup 불필요
+        EventOption eventOption = eventQueryService.findOptionWithProduct(
+                command.eventId(), command.optionId());
+
+        // 3계층: Redis SET NX — 동시 중복 차단 + 성공 결과 캐시 replay
         String idemValue = idempotencyStore.tryAcquire(command.idempotencyKey());
         if (idemValue != null) {
             if (idempotencyStore.isInProgress(idemValue)) {
@@ -65,7 +69,7 @@ public class BookingFacade {
                     .orElseThrow(() -> new BaseException(ErrorCode.DUPLICATE_ENTRY));
         }
 
-        // 3. reserve.lua — 1인 1구매 + oversell 원자 차단
+        // 4. reserve.lua — 1인 1구매 + oversell 원자 차단
         ReserveResult reserveResult = stockService.reserve(
                 command.eventId(), command.optionId(), command.userId());
 
@@ -83,8 +87,6 @@ public class BookingFacade {
         boolean pgApproved = false;
 
         try {
-            EventOption eventOption = eventQueryService.findOptionWithProduct(
-                    command.eventId(), command.optionId());
             ctx = paymentOrchestrator.process(command, eventOption);
             pgApproved = true; // PG 승인 완료 (포인트 단독 포함) — 이후 재시도 금지
 

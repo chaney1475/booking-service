@@ -33,21 +33,22 @@ flowchart TD
     C -- UNKNOWN 주문 존재 --> C_UNKNOWN([409 ORDER_IN_UNKNOWN_STATE\n값 변화 없음])
     C -- PENDING·FAILED or 없음 --> D
 
-    D{Layer2\nRedis SET NX\nidem 키}
-    D -- IN_PROGRESS --> D_DUP([409 DUPLICATE_ENTRY\n값 변화 없음])
-    D -- JSON 캐시 --> D_REPLAY([200 캐시 결과 반환\n값 변화 없음])
-    D -- null 획득 --> D_ACQ[idem = IN_PROGRESS]
-    D_ACQ --> E
+    D[이벤트·옵션 조회 및 OPEN 검증\nDB READ — 순수 읽기]
+    D -- EVENT_NOT_FOUND/NOT_OPEN --> D_FAIL([404/400 오류\n값 변화 없음\nidem 미획득])
+    D -- OK --> E
 
-    E{reserve.lua\n원자 실행}
-    E -- ALREADY_PURCHASED --> E_AP([409 ALREADY_PURCHASED\nidem 키 삭제])
-    E -- DUPLICATE_ENTRY --> E_DE([409 DUPLICATE_ENTRY\nidem 키 삭제])
-    E -- SOLD_OUT --> E_SO([409 SOLD_OUT\nidem 키 삭제])
-    E -- OK --> E_OK[promo_stock -1\ninflight 등록 TTL90s]
-    E_OK --> F
+    E{Layer2\nRedis SET NX\nidem 키}
+    E -- IN_PROGRESS --> E_DUP([409 DUPLICATE_ENTRY\n값 변화 없음])
+    E -- JSON 캐시 --> E_REPLAY([200 캐시 결과 반환\n값 변화 없음])
+    E -- null 획득 --> E_ACQ[idem = IN_PROGRESS]
+    E_ACQ --> F
 
-    F[이벤트 옵션 조회\nDB READ]
-    F --> G
+    F{reserve.lua\n원자 실행}
+    F -- ALREADY_PURCHASED --> F_AP([409 ALREADY_PURCHASED\nidem 키 삭제])
+    F -- DUPLICATE_ENTRY --> F_DE([409 DUPLICATE_ENTRY\nidem 키 삭제])
+    F -- SOLD_OUT --> F_SO([409 SOLD_OUT\nidem 키 삭제])
+    F -- OK --> F_OK[promo_stock -1\ninflight 등록 TTL90s]
+    F_OK --> G
 
     G[결제 정책 검증\npaymentPolicy.validate]
     G -- 금액 불일치·조합 오류 --> G_FAIL([400 오류\npromo_stock +1 복원\ninflight 삭제\nidem 삭제])
