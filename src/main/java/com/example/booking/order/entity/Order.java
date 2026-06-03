@@ -54,4 +54,8 @@ public class Order extends BaseEntity {
     public void cancel() {
         this.status = OrderStatus.CANCELLED;
     }
+
+    public void resetToPending() {
+        this.status = OrderStatus.PENDING;
+    }
 }

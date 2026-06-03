@@ -34,7 +34,12 @@ public class BookingFacade {
 
     /**
      * 예약 전체 흐름을 조율한다: 멱등성 검사 → 재고 선점 → 결제 → 확정.
-     * <p>결제·재고 실패 시 재고 반납 및 멱등 키를 해제해 재시도를 허용한다.</p>
+     *
+     * <p>pgApproved 플래그로 PG 승인 전/후 실패를 구분한다.
+     * <ul>
+     *   <li>PG 승인 전 실패: PENDING 주문 FAILED 처리 + 재고 반납 + idem 해제 → 재시도 허용</li>
+     *   <li>PG 승인 후 실패: UNKNOWN 동결 → 재시도 금지 (이중결제 위험), 배치 정산 대상</li>
+     * </ul>
      */
     public BookingDto book(BookingCommand command) {
         // 1계층: DB 조회 — TTL 만료·Redis 장애 후에도 PAID 반환 가능
@@ -74,10 +79,14 @@ public class BookingFacade {
             };
         }
 
+        PaymentContext ctx = null;
+        boolean pgApproved = false;
+
         try {
             EventOption eventOption = eventQueryService.findOptionWithProduct(
                     command.eventId(), command.optionId());
-            PaymentContext ctx = paymentOrchestrator.process(command, eventOption);
+            ctx = paymentOrchestrator.process(command, eventOption);
+            pgApproved = true; // PG 승인 완료 (포인트 단독 포함) — 이후 재시도 금지
 
             // T2: 재고 확정 + 주문 PAID + 멱등 결과 캐시
             stockService.confirm(command.eventId(), command.optionId(), command.userId());
@@ -93,9 +102,21 @@ public class BookingFacade {
             // UNKNOWN 동결 — 재고·포인트 그대로 유지, release 하지 않음
             throw e;
         } catch (Exception e) {
-            // 보상: 재고 반납 + idem 해제 (재시도 허용)
-            stockService.release(command.eventId(), command.optionId(), command.userId());
-            idempotencyStore.release(command.idempotencyKey());
+            if (pgApproved) {
+                // PG 이미 승인 — 재시도 시 이중결제 위험, UNKNOWN으로 동결
+                log.error("[BookingFacade] PG 승인 후 후속 처리 실패 — UNKNOWN 동결. orderId={}",
+                        ctx != null ? ctx.order().getId() : "unknown", e);
+                if (ctx != null) {
+                    orderService.markUnknown(ctx.order().getId(), e.getMessage());
+                }
+            } else {
+                // PG 호출 전 실패 — 잔류 PENDING 주문 정리 후 재시도 허용
+                orderService.findByIdempotencyKey(command.idempotencyKey())
+                        .filter(o -> o.getStatus() == OrderStatus.PENDING)
+                        .ifPresent(o -> orderService.markFailed(o.getId(), e.getMessage()));
+                stockService.release(command.eventId(), command.optionId(), command.userId());
+                idempotencyStore.release(command.idempotencyKey());
+            }
             throw e;
         }
     }

@@ -43,6 +43,16 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public Order createPending(EventOption eventOption, Long userId, String idempotencyKey,
                                long promoPrice, long pgAmount) {
+        // 이전 실패 주문 재사용 — 동일 idempotency_key INSERT 시 UNIQUE 위반 방지 (#7)
+        Optional<Order> existing = orderRepository.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            Order order = existing.get();
+            order.resetToPending();
+            paymentRepository.findByOrderId(order.getId())
+                    .ifPresent(p -> p.resetToPending(pgAmount));
+            return order;
+        }
+
         User user = userRepository.getReferenceById(userId);
         Order order = new Order(user, idempotencyKey, promoPrice);
         orderRepository.save(order);

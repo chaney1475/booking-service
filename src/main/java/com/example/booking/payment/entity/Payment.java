@@ -58,4 +58,11 @@ public class Payment extends BaseEntity {
     public void refund() {
         this.status = PaymentStatus.REFUNDED;
     }
+
+    public void resetToPending(long amount) {
+        this.status = PaymentStatus.PENDING;
+        this.amount = amount;
+        this.pgTxRef = null;
+        this.failReason = null;
+    }
 }
