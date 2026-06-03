@@ -1,6 +1,8 @@
 spring:
   application:
     name: booking-service
+  profiles:
+    active: local
 
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:booking}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
@@ -11,6 +13,12 @@ spring:
       maximum-pool-size: 50   # 30→100은 MySQL 동시 쿼리 과부하, 50이 스위트스팟
       minimum-idle: 20        # 워밍업 후 즉시 사용 가능한 커넥션 확보
       connection-timeout: 3000
+
+  cache:
+    type: caffeine
+    cache-names: eventOption
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=10s
 
   sql:
     init:
