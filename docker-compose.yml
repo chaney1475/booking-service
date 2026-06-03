@@ -31,6 +31,48 @@ services:
       timeout: 3s
       retries: 5
 
+  app:
+    build: .
+    container_name: booking-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: booking
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # WarmupRunner 완료 후 checkout 200 반환 시 healthy
+      test: ["CMD", "sh", "-c",
+             "curl -sf 'http://localhost:8080/api/checkout?eventId=1&optionId=1' -H 'X-User-Id: 1' | grep -q '\"success\":true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  k6:
+    image: grafana/k6
+    volumes:
+      - ./scripts/k6:/scripts
+    environment:
+      BASE_URL: http://app:8080
+      EVENT_ID: "1"
+      OPTION_ID: "1"
+    depends_on:
+      app:
+        condition: service_healthy
+    profiles:
+      - test  # docker compose up 시 기본 제외
+
 volumes:
   mysql-data:
   redis-data:
