@@ -16,6 +16,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
   redis:
     image: redis:7-alpine
@@ -30,14 +35,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   app:
     build: .
     container_name: booking-app
+    profiles:
+      - perf
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: local
+      SPRING_PROFILES_ACTIVE: local,perf
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: booking
@@ -45,6 +57,7 @@ services:
       DB_PASSWORD: root
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JAVA_TOOL_OPTIONS: "-Xms1g -Xmx1536m"
     depends_on:
       mysql:
         condition: service_healthy
@@ -58,6 +71,11 @@ services:
       timeout: 5s
       retries: 20
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
 
   k6:
     image: grafana/k6
@@ -71,7 +89,7 @@ services:
       app:
         condition: service_healthy
     profiles:
-      - test  # docker compose up 시 기본 제외
+      - perf  # docker compose up 시 기본 제외, --profile perf 로 활성화
 
 volumes:
   mysql-data:

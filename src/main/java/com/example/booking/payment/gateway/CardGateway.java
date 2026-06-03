@@ -34,7 +34,7 @@ public class CardGateway implements PaymentGateway {
         }
 
         String pgTxRef = "card-" + UUID.randomUUID();
-        log.info("[CardGateway] APPROVED — merchantUid={}, pgTxRef={}", command.merchantUid(), pgTxRef);
+        log.debug("[CardGateway] APPROVED — merchantUid={}, pgTxRef={}", command.merchantUid(), pgTxRef);
         return PaymentOutcome.approved(pgTxRef);
     }
 
