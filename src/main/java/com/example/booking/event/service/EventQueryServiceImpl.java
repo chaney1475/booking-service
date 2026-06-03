@@ -2,7 +2,9 @@ package com.example.booking.event.service;
 
 import com.example.booking.common.exception.BaseException;
 import com.example.booking.common.exception.ErrorCode;
+import com.example.booking.event.entity.Event;
 import com.example.booking.event.entity.EventOption;
+import com.example.booking.event.entity.EventStatus;
 import com.example.booking.event.repository.EventOptionRepository;
 import com.example.booking.event.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +21,10 @@ public class EventQueryServiceImpl implements EventQueryService {
 
     @Override
     public EventOption findOptionWithProduct(Long eventId, Long optionId) {
-        if (!eventRepository.existsById(eventId)) {
-            throw new BaseException(ErrorCode.EVENT_NOT_FOUND);
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BaseException(ErrorCode.EVENT_NOT_FOUND));
+        if (event.getStatus() != EventStatus.OPEN) {
+            throw new BaseException(ErrorCode.EVENT_NOT_OPEN);
         }
         return eventOptionRepository.findByEventIdAndOptionId(eventId, optionId)
                 .orElseThrow(() -> new BaseException(ErrorCode.EVENT_OPTION_NOT_FOUND));
